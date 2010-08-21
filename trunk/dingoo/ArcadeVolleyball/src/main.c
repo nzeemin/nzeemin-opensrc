@@ -2,7 +2,7 @@
 Arcade Volleyball
 
 TODO:
-  - Game scoring
+  - AI
 
 ****************************************************************************/
 
@@ -27,7 +27,7 @@ TODO:
 #define UNUSED __attribute__ (( unused ))
 
 #define VERSION_MAJOR    0
-#define VERSION_MINOR    2
+#define VERSION_MINOR    4
 
 gfx_font* g_gameFontSmall = NULL;
 display*  g_gameDisplay  = NULL;
@@ -53,8 +53,11 @@ enum GameMode g_gameMode = GAMEMODE_MENU;
 enum GameMenuItem
 {
     GAMEMENU_P1P2 = 0,
-    GAMEMENU_EXIT = 1,
-    GAMEMENU_LAST = 1,
+    GAMEMENU_P1AI = 1,
+    GAMEMENU_AIP2 = 2,
+    GAMEMENU_AIAI = 3,
+    GAMEMENU_EXIT = 4,
+    GAMEMENU_LAST = 4,
 };
 enum GameMenuItem g_gameMenuItem = GAMEMENU_P1P2;
 
@@ -72,6 +75,7 @@ enum GameMenuItem g_gameMenuItem = GAMEMENU_P1P2;
 #define POSY_PLAYER_TOPJUMP POSY_FIELD_BOTTOM - 40
 #define PLAYER_MOVE_SPEED 2
 #define PLAYER_JUMP_SPEED 2
+#define PLAYER_HEIGHT 26
 #define PLAYER_RADIUS 12
 #define POSX_PLAYER1_LEFT_LIMIT (4 + 15)
 #define POSX_PLAYER1_RIGHT_LIMIT (160 - 2 - 15)
@@ -91,10 +95,14 @@ int32_t g_gamePlayer1PosY = POSY_PLAYER_BASE;
 int32_t g_gamePlayer1Score = 0;
 int32_t g_gamePlayer1PosX = POSX_PLAYER1_BASE;
 int32_t g_gamePlayer1SpeedY = 0;
+bool    g_gamePlayer1AI = false;
+int     g_gamePlayer1AIControl = 0;  // CONTROL_DPAD_LEFT, CONTROL_DPAD_RIGHT, CONTROL_DPAD_UP
 int32_t g_gamePlayer2PosY = POSY_PLAYER_BASE;
 int32_t g_gamePlayer2PosX = POSX_PLAYER2_BASE;
 int32_t g_gamePlayer2SpeedY = 0;
 int32_t g_gamePlayer2Score = 0;
+bool    g_gamePlayer2AI = false;
+int     g_gamePlayer2AIControl = 0;  // CONTROL_DPAD_LEFT, CONTROL_DPAD_RIGHT, CONTROL_DPAD_UP
 
 bool g_gameBallTouchNetTop = false;
 bool g_gameBallTouchPlayer = false;
@@ -156,9 +164,12 @@ void drawScreen()
         gfx_font_print_center(40, g_gameFontSmall, "Dingoo ver. 2010 Nikita Zimin");
 
         // Menu items
-        gfx_font_print(100 - 4 * 8, 64 + g_gameMenuItem * 16, g_gameFontSmall, "-->");
-        gfx_font_print(100, 64 + 00, g_gameFontSmall, "Player1 vs Player2");
-        gfx_font_print(100, 64 + 16, g_gameFontSmall, "Exit");
+        gfx_font_print(90 - 4 * 8, 64 + g_gameMenuItem * 16, g_gameFontSmall, "-->");
+        gfx_font_print(90, 64 + 00, g_gameFontSmall, "Player1 vs Player2");
+        gfx_font_print(90, 64 + 16, g_gameFontSmall, "Player1 vs AI");
+        gfx_font_print(90, 64 + 32, g_gameFontSmall, "     AI vs Player2");
+        gfx_font_print(90, 64 + 48, g_gameFontSmall, "     AI vs AI");
+        gfx_font_print(90, 64 + 64, g_gameFontSmall, "       Exit");
 
     }
     else if (g_gameMode == GAMEMODE_PLAY)
@@ -168,6 +179,10 @@ void drawScreen()
         gfx_tex_draw(g_gameBallPosX - 12, g_gameBallPosY - 11, ballSprite);
         g_gameBallSpriteTick++;
         //gfx_line_draw(g_gameBallPosX, g_gameBallPosY, g_gameBallPosX + g_gameBallSpeedX / 10, g_gameBallPosY + g_gameBallSpeedY / 10, gfx_color_rgb(0,0,210));
+
+        // Player signs
+        gfx_font_print(0, 240 - 16, g_gameFontSmall, g_gamePlayer1AI ? "AI" : "Player1");
+        gfx_font_print(320 - 7*8, 240 - 16, g_gameFontSmall, g_gamePlayer2AI ? "     AI" : "Player2");
     }
 
     if (g_gamePlayer1PosY < POSY_PLAYER_BASE)
@@ -197,9 +212,11 @@ void gameRoundStart()
     g_gamePlayer1PosY = POSY_PLAYER_BASE;
     g_gamePlayer1PosX = POSX_PLAYER1_BASE;
     g_gamePlayer1SpeedY = 0;
+    g_gamePlayer1AIControl = 0;
     g_gamePlayer2PosY = POSY_PLAYER_BASE;
     g_gamePlayer2PosX = POSX_PLAYER2_BASE;
     g_gamePlayer2SpeedY = 0;
+    g_gamePlayer2AIControl = 0;
 
     // Pause
     display_flip(g_gameDisplay);
@@ -220,74 +237,89 @@ void gameFinish()
     g_gameMode = GAMEMODE_MENU;
 }
 
-void processControls()
+void processControlsMenu()
 {
-    if (g_gameMode == GAMEMODE_MENU)
+	if (control_just_pressed(CONTROL_DPAD_UP))
     {
-    	if (control_just_pressed(CONTROL_DPAD_UP))
+        if (g_gameMenuItem > 0)
+            g_gameMenuItem--;
+    }
+	if (control_just_pressed(CONTROL_DPAD_DOWN))
+    {
+        if (g_gameMenuItem < GAMEMENU_LAST)
+            g_gameMenuItem++;
+    }
+    if (control_just_pressed(CONTROL_BUTTON_SELECT) ||
+        control_just_pressed(CONTROL_BUTTON_START))
+    {
+        switch (g_gameMenuItem)
         {
-            if (g_gameMenuItem > 0)
-                g_gameMenuItem--;
-        }
-    	if (control_just_pressed(CONTROL_DPAD_DOWN))
-        {
-            if (g_gameMenuItem < GAMEMENU_LAST)
-                g_gameMenuItem++;
-        }
-        if (control_just_pressed(CONTROL_BUTTON_SELECT) ||
-            control_just_pressed(CONTROL_BUTTON_START))
-        {
-            switch (g_gameMenuItem)
-            {
-            case GAMEMENU_P1P2:
-                gameStart();
-                break;
-            case GAMEMENU_EXIT:
-                g_gameRunning = false;
-                break;
-            }
+        case GAMEMENU_P1P2:
+            g_gamePlayer1AI = false;
+            g_gamePlayer2AI = false;
+            gameStart();
+            break;
+        case GAMEMENU_P1AI:
+            g_gamePlayer1AI = false;
+            g_gamePlayer2AI = true;
+            gameStart();
+            break;
+        case GAMEMENU_AIP2:
+            g_gamePlayer1AI = true;
+            g_gamePlayer2AI = false;
+            gameStart();
+            break;
+        case GAMEMENU_AIAI:
+            g_gamePlayer1AI = true;
+            g_gamePlayer2AI = true;
+            gameStart();
+            break;
+        case GAMEMENU_EXIT:
+            g_gameRunning = false;
+            break;
         }
     }
-    else if (g_gameMode == GAMEMODE_PLAY)
+}
+
+void processControlsPlay()
+{
+    // Player 1 controls
+	if (((!g_gamePlayer1AI && control_still_pressed(CONTROL_DPAD_LEFT)) || g_gamePlayer1AIControl == CONTROL_DPAD_LEFT) && 
+        g_gamePlayer1PosX > POSX_PLAYER1_LEFT_LIMIT)  // Left
     {
-        // Player 1 controls
-    	if (control_still_pressed(CONTROL_DPAD_LEFT) && 
-            g_gamePlayer1PosX > POSX_PLAYER1_LEFT_LIMIT)  // Left
-        {
-            g_gamePlayer1PosX -= PLAYER_MOVE_SPEED;
-        }
-    	if (control_still_pressed(CONTROL_DPAD_RIGHT) &&
-            g_gamePlayer1PosX < POSX_PLAYER1_RIGHT_LIMIT)  // Right
-        {
-            g_gamePlayer1PosX += PLAYER_MOVE_SPEED;
-        }
-    	if (control_still_pressed(CONTROL_DPAD_UP) &&
-            g_gamePlayer1PosY == POSY_PLAYER_BASE)  // Jump
-        {
-            g_gamePlayer1SpeedY = -PLAYER_JUMP_SPEED;
-        }
+        g_gamePlayer1PosX -= PLAYER_MOVE_SPEED;
+    }
+	if (((!g_gamePlayer1AI && control_still_pressed(CONTROL_DPAD_RIGHT)) || g_gamePlayer1AIControl == CONTROL_DPAD_RIGHT) &&
+        g_gamePlayer1PosX < POSX_PLAYER1_RIGHT_LIMIT)  // Right
+    {
+        g_gamePlayer1PosX += PLAYER_MOVE_SPEED;
+    }
+	if (((!g_gamePlayer1AI && control_still_pressed(CONTROL_DPAD_UP)) || g_gamePlayer1AIControl == CONTROL_DPAD_UP) &&
+        g_gamePlayer1PosY == POSY_PLAYER_BASE)  // Jump
+    {
+        g_gamePlayer1SpeedY = -PLAYER_JUMP_SPEED;
+    }
 
-        // Player 2 controls
-    	if (control_still_pressed(CONTROL_BUTTON_Y) &&
-            g_gamePlayer2PosX > POSX_PLAYER2_LEFT_LIMIT)  // Left
-        {
-            g_gamePlayer2PosX -= PLAYER_MOVE_SPEED;
-        }
-    	if (control_still_pressed(CONTROL_BUTTON_A) &&
-            g_gamePlayer2PosX < POSX_PLAYER2_RIGHT_LIMIT)  // Right
-        {
-            g_gamePlayer2PosX += PLAYER_MOVE_SPEED;
-        }
-    	if (control_still_pressed(CONTROL_BUTTON_X) &&
-            g_gamePlayer2PosY == POSY_PLAYER_BASE)  // Jump
-        {
-            g_gamePlayer2SpeedY = -PLAYER_JUMP_SPEED;
-        }
+    // Player 2 controls
+	if (((!g_gamePlayer2AI && control_still_pressed(CONTROL_BUTTON_Y)) || g_gamePlayer2AIControl == CONTROL_DPAD_LEFT) &&
+        g_gamePlayer2PosX > POSX_PLAYER2_LEFT_LIMIT)  // Left
+    {
+        g_gamePlayer2PosX -= PLAYER_MOVE_SPEED;
+    }
+	if (((!g_gamePlayer2AI && control_still_pressed(CONTROL_BUTTON_A)) || g_gamePlayer2AIControl == CONTROL_DPAD_RIGHT) &&
+        g_gamePlayer2PosX < POSX_PLAYER2_RIGHT_LIMIT)  // Right
+    {
+        g_gamePlayer2PosX += PLAYER_MOVE_SPEED;
+    }
+	if (((!g_gamePlayer2AI && control_still_pressed(CONTROL_BUTTON_X)) || g_gamePlayer2AIControl == CONTROL_DPAD_UP) &&
+        g_gamePlayer2PosY == POSY_PLAYER_BASE)  // Jump
+    {
+        g_gamePlayer2SpeedY = -PLAYER_JUMP_SPEED;
+    }
 
-    	if (control_just_pressed(CONTROL_BUTTON_START))
-        {
-            gameFinish();
-        }
+	if (control_just_pressed(CONTROL_BUTTON_START))
+    {
+        gameFinish();
     }
 }
 
@@ -536,6 +568,37 @@ void processLogic()
     }
 }
 
+int processAI(bool player1)
+{
+    int32_t playerPosX = player1 ? g_gamePlayer1PosX : g_gamePlayer2PosX;
+
+    bool isBallOnOtherSide = player1 ? (g_gameBallPosX - BALL_RADIUS > POSX_NET) : (g_gameBallPosX + BALL_RADIUS < POSX_NET);
+    if (isBallOnOtherSide)  // Ball on other side - just walking around
+    {
+        // Go to field center
+        int32_t centerPos = player1 ? (POSX_NET - POSX_NET / 2) : (POSX_NET + POSX_NET / 2);
+        if (centerPos < playerPosX)
+            return CONTROL_DPAD_LEFT;
+        if (centerPos > playerPosX)
+            return CONTROL_DPAD_RIGHT;
+    }
+    else  // Ball on our side
+    {
+        // If the ball to low then jump
+        if (g_gameBallPosY + BALL_RADIUS + 50 > POSY_FIELD_BOTTOM - PLAYER_HEIGHT)
+            return CONTROL_DPAD_UP;
+
+        // If the ball at left, go left
+        if (g_gameBallPosX < playerPosX)
+            return CONTROL_DPAD_LEFT;
+        // If the ball at right, go right
+        if (g_gameBallPosX > playerPosX)
+            return CONTROL_DPAD_RIGHT;
+    }
+
+    return 0;
+}
+
 int main(int argc UNUSED, char** argv UNUSED)
 {
     int ref = EXIT_SUCCESS;
@@ -575,7 +638,16 @@ int main(int argc UNUSED, char** argv UNUSED)
         drawScreen();
         
         control_poll();
-        processControls();
+        if (g_gameMode == GAMEMODE_MENU)
+            processControlsMenu();
+        else
+        {
+            if (g_gamePlayer1AI)
+                g_gamePlayer1AIControl = processAI(true);
+            if (g_gamePlayer2AI)
+                g_gamePlayer2AIControl = processAI(false);
+            processControlsPlay();
+        }
         processLogic();
 
         display_flip(g_gameDisplay);
