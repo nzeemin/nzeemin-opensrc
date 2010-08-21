@@ -301,21 +301,6 @@ int32_t compareDistance(int32_t x1, int32_t y1, int32_t x2, int32_t y2, int32_t 
     return (result2 > radius2) ? 1 : -1;
 }
 
-//NOTE: Have to implement custom function, because fix16_sqrt returns wrong values
-//Source: http://www.embedded.com/98/9802fe2.htm, very slow algorythm
-int32_t isqrt(int32_t a)
-{
-    int32_t square = 1;
-    int32_t delta = 3;
-    while (square <= a)
-    {
-        square += delta;
-        delta += 2;
-    }
-    
-    return (delta / 2 - 1);
-}
-
 void processCollisions()
 {
     // Check ball touch floor
@@ -380,7 +365,7 @@ void processCollisions()
             int32_t dy = (POSY_NET_TOP - g_gameBallPosY);
             int32_t sx = g_gameBallSpeedX;
             int32_t sy = g_gameBallSpeedY;
-            int32_t dlen = isqrt(dx * dx + dy * dy);
+            int32_t dlen = fix16_to_int(fix16_sqrt(fix16_from_int(dx * dx + dy * dy)));
             int32_t dprolen = (dx * sx + dy * sy) / dlen;
             int32_t dprox = dprolen * dx / dlen;
             int32_t dproy = dprolen * dy / dlen;
@@ -436,7 +421,7 @@ void processCollisions()
             int32_t dy = ((g_gamePlayer1PosY - 15) - g_gameBallPosY);
             int32_t sx = g_gameBallSpeedX;
             int32_t sy = g_gameBallSpeedY;
-            int32_t dlen = isqrt(dx * dx + dy * dy);
+            int32_t dlen = fix16_to_int(fix16_sqrt(fix16_from_int(dx * dx + dy * dy)));
             int32_t dprolen = (dx * sx + dy * sy) / dlen;
             int32_t dprox = dprolen * dx / dlen;
             int32_t dproy = dprolen * dy / dlen;
@@ -467,7 +452,7 @@ void processCollisions()
             int32_t dy = ((g_gamePlayer2PosY - 15) - g_gameBallPosY);
             int32_t sx = g_gameBallSpeedX;
             int32_t sy = g_gameBallSpeedY;
-            int32_t dlen = isqrt(dx * dx + dy * dy);
+            int32_t dlen = fix16_to_int(fix16_sqrt(fix16_from_int(dx * dx + dy * dy)));
             int32_t dprolen = (dx * sx + dy * sy) / dlen;
             int32_t dprox = dprolen * dx / dlen;
             int32_t dproy = dprolen * dy / dlen;
