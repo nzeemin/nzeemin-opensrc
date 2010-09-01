@@ -1,0 +1,11 @@
+# -----------------------------------------------
+# --- ゲーム用サウンド定義
+#
+
+M001 car_bgm.ogg
+
+S001 se_credt.wav
+S002 se_ready.wav
+S003 se_start.wav
+S004 se_miss.wav
+S005 se_pause.wav
