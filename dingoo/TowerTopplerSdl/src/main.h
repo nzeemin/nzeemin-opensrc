@@ -60,9 +60,14 @@ Uint8 Level_GetTowerData(int row, int col);
 
 // Data qualification functions
 int Level_IsPlatform(Uint8 data);
+int Level_IsEmpty(Uint8 data);
 inline int Level_IsDoor(Uint8 data)
 {
     return (data == TB_DOOR || data == TB_DOOR_TARGET || data == TB_STICK_DOOR);
+}
+inline int Level_IsSliding(Uint8 data)
+{
+    return ((data == TB_STEP_LSLIDER) ? 1 : (data == TB_STEP_RSLIDER) ? -1 : 0);
 }
 
 void Level_RemoveVanishStep(int row, int col);

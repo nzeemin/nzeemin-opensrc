@@ -126,6 +126,7 @@ int Level_GetTowerSize()
 Uint8 Level_GetTowerData(int row, int col)
 {
     if (g_Level_TowerNumber < 0) return 0;
+    if (col < 0 || col >= TOWERWID) return 0;
 
     return g_Level_Tower[row][col];
 }
@@ -144,6 +145,10 @@ Uint32 Level_GetTowerColor()
 int Level_IsPlatform(Uint8 data)
 {
     return ((TowerBlocks[data].tf & TBF_PLATFORM) != 0);
+}
+int Level_IsEmpty(Uint8 data)
+{
+    return ((TowerBlocks[data].tf & TBF_EMPTY) != 0);
 }
 
 void Level_RemoveVanishStep(int row, int col)
