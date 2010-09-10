@@ -1,6 +1,31 @@
 // Towers definition
 // NOTE: Included only once, in level.cpp
 
+// Test tower
+static const char* TestTower[] = 
+{
+    "                ",
+    "                ",
+    "                ",
+    "                ",
+    "                ",
+    "                ",
+    "v               ",
+    " ---<<...       ",
+    " !              ",
+    " !              ",
+    "^!              ",
+    "--           ---",
+    "      v     -   ",
+    "       >----    ",
+    "                ",
+    "  #       #     ",
+    "  #       #     ",
+    "  #   ^   #   - ",
+    "-------------- -",
+    "               ",
+};
+
 // Tower of eyes
 static const char* Mission1Tower1[] = 
 {
