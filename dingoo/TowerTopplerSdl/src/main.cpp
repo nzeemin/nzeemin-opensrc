@@ -23,47 +23,12 @@ void MenuStart();
 
 
 /////////////////////////////////////////////////////////////////////////////
-
-#define VERSION_MAJOR    0
-#define VERSION_MINOR    1
-
-#define SCREEN_WIDTH    320
-#define SCREEN_HEIGHT   240
-
-const float PI = 3.14159265358979323f;
-
-#define TOWER_RADIUS            75
-#define TOWER_STEPS_RADIUS      (TOWER_RADIUS + 30)
-#define TOWER_LIFTC_RADIUS      (TOWER_RADIUS + 15)     // Distance between tower center and lift center
-#define TOWER_LIFT_RADIUS       14                      // Radius of lift platform
-#define TOWER_STICKC_RADIUS     (TOWER_RADIUS + 15)
-#define TOWER_STICK_RADIUS      6
-#define POSY_BRICK_HEIGHT       8
-#define POSX_VIEWPORT_MARGIN    6
-#define POSY_VIEWPORT_TOP       44
-#define POSY_VIEWPORT_BOTTOM    SCREEN_HEIGHT - 16
-#define POSY_VIEWPORT_HEIGHT    180
-#define POSX_VIEWPORT_WIDTH     (SCREEN_WIDTH - 2 * POSX_VIEWPORT_MARGIN)
-#define POSX_VIEWPORT_CENTER    (SCREEN_WIDTH / 2)
-#define POSX_TOWER_CENTER       POSX_VIEWPORT_CENTER
-#define POSY_POGO_BASE          (POSY_VIEWPORT_TOP + 110)
-#define POSX_POGO_HALFWIDTH     12
-#define POSY_POGO_HEIGHT        20
-
-#define STARS_MULTIPLIER        3
-#define STARS_BACK_HEIGHT       (POSY_VIEWPORT_HEIGHT * 2)
-#define STARS_BACK_WIDTH        (360 * STARS_MULTIPLIER + SCREEN_WIDTH)
-#define STARCOUNT               50
-
-
-/////////////////////////////////////////////////////////////////////////////
 // Globals
 
 SDL_Surface *g_Screen = NULL;
 SDL_Surface *g_Sprites = NULL;
 SDL_Surface *g_TowerBricks = NULL;  // Buffer surface for 2 lines of tower bricks
 Uint32      g_colorBlack = 0;
-Uint32      g_colorTarget;
 
 enum GameMode
 {
@@ -87,9 +52,19 @@ int     g_ControlState;         // See ControlStateEnum
 int     g_PogoState;            // See PogoStateEnum
 int     g_PogoMovtPhase;        // Pogo movement phase
 float   g_Pogo180Angle;         // Target angle for 180 degree rotation
+int     g_LiftDirection;        // Lift movement direction: -1 or 1
+float   g_SnowballAnglePassed;
+float   g_SnowballAngle;
+int     g_SnowballLevel;
+int     g_SnowballDirection = 0;
 
 int     g_WaterY;               // Water level, used in drawing process
+int     g_TowerTopLine;         // Top tower block line to draw, used in drawing process
+int     g_TowerTopLineY;        // Y-position of the top tower block line to draw, used in drawing process
+
 Uint8   g_CurLineTB;            // Tower block behind Pogo, used in game logic processing
+int     g_BaseLine;             // Tower block line under Pogo, used in game logic processing
+int     g_BaseLineIndex;
 Uint8   g_BaseLineTB;           // Tower block under Pogo, used in game logic processing
 
 int     g_LastDelay = 0;        //DEBUG: Last delay value, milliseconds
@@ -100,36 +75,6 @@ struct StarsStruct
     int x, y;
 }
 g_Stars[STARCOUNT];
-
-enum PogoStateEnum
-{
-    // Masks and masked values
-    POGO_MASK_DIR   = 0x1000,  // Direction mask
-    POGO_L          = 0x0000,
-    POGO_R          = 0x1000,
-    POGO_MASK_STATE = 0x00ff,  // State mask
-    // States
-    POGO_STAY       = 0x0001,
-    POGO_WALK       = 0x0002,
-    POGO_DOOR       = 0x0004,  // Door and 180 degree rotation
-    POGO_JUMP       = 0x0008,
-    POGO_LIFT       = 0x0010,  // Lifting on elevator
-    POGO_FALL       = 0x0020,
-    POGO_DROWN      = 0x0040,
-    // Combined values
-    POGO_L_STAY     = POGO_STAY | POGO_L,
-    POGO_L_WALK     = POGO_WALK | POGO_L,
-    POGO_L_DOOR     = POGO_DOOR | POGO_L,
-    POGO_L_JUMP     = POGO_JUMP | POGO_L,
-    POGO_L_FALL     = POGO_FALL | POGO_L,
-    POGO_L_DROWN    = POGO_DROWN | POGO_L,
-    POGO_R_STAY     = POGO_STAY | POGO_R,
-    POGO_R_WALK     = POGO_WALK | POGO_R,
-    POGO_R_DOOR     = POGO_DOOR | POGO_R,
-    POGO_R_JUMP     = POGO_JUMP | POGO_R,
-    POGO_R_FALL     = POGO_FALL | POGO_R,
-    POGO_R_DROWN    = POGO_DROWN | POGO_R,
-};
 
 enum ControlStateEnum
 {
@@ -174,6 +119,7 @@ enum SpriteEnum
     SPRITE_POGO_DROWN1,
     SPRITE_POGO_DROWN2,
     SPRITE_POGO_DROWN3,
+    SPRITE_SNOWBALL,
     SPRITE_LIFE,
     SPRITE_FONT_TIMER,
     SPRITE_FONT_8X8,
@@ -213,7 +159,8 @@ g_SpriteCoords[SPRITECOUNT] =   // List of sprites coords, in order of SpriteEnu
     { 176,  42,  24,  20 },  // SPRITE_POGO_DROWN1
     { 201,  42,  24,  20 },  // SPRITE_POGO_DROWN2
     { 226,  42,  24,  20 },  // SPRITE_POGO_DROWN3
-    {   1,  54,  11,   9 },  // SPRITE_LIFE
+    {   1,  42,   8,   8 },  // SPRITE_SNOWBALL
+    {   1,  53,  11,   9 },  // SPRITE_LIFE
     {   1,  88, 160,  23 },  // SPRITE_FONT_TIMER
     {   1, 113, 128,  40 },  // SPRITE_FONT_8X8
 };
@@ -290,8 +237,9 @@ void DrawTextBase(int x, int y, char *str)
 
 
 /////////////////////////////////////////////////////////////////////////////
+// Drawing
 
-void GamePrepareTowerBricks()
+void DrawPrepareTowerBricks()
 {
     if (g_LastTowerAngle == g_TowerAngle)
         return;  // g_TowerBricks already prepared for the angle
@@ -326,18 +274,18 @@ void GamePrepareTowerBricks()
 
         // Draw vert lines
         float angle = g_TowerAngle;
-        if (line  == 1) angle += 11.25f;
-        angle = fmod(angle, 22.5f);
+        if (line  == 1) angle += ANGLE_HALFBLOCK;
+        angle = fmod(angle, ANGLE_BLOCK);
         for (int i = 0; i < 8; i++)
         {
-            float fx = cos(angle * PI / 180.0f) * TOWER_RADIUS;
+            float fx = cos(angle * PI / ANGLE_180) * TOWER_RADIUS;
             int x = (int)(fx + 0.5);
             rc.x = TOWER_RADIUS + x - 1;  rc.y = y;
             rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
             SDL_FillRect(g_TowerBricks, &rc, g_TowerColorDark);
 
-            angle += 22.5f;  // 16 bricks
-            if (angle >= 180.0f) break;
+            angle += ANGLE_BLOCK;
+            if (angle >= ANGLE_180) break;
         }
 
         y += POSY_BRICK_HEIGHT;
@@ -350,9 +298,10 @@ void DrawGameIndicators()
 {
     char buffer[16];
 
-    //TODO: Draw score
+    //// Draw score
     //DrawTextBase(POSX_VIEWPORT_MARGIN, 8, "SCORE");
-    //DrawTextBase(POSX_VIEWPORT_MARGIN, 18, "00000000");  //TODO
+    //sprintf(buffer, "%08d", 0);
+    //DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);
     sprintf(buffer, "ANGLE %4d", (int)(g_TowerAngle * 10));  //DEBUG
     DrawTextBase(POSX_VIEWPORT_MARGIN, 8, buffer);  //DEBUG
     sprintf(buffer, "LEVEL %4d", (int)g_TowerLevel);  //DEBUG
@@ -379,7 +328,7 @@ void DrawBackground()
 
     // Draw background stars
     int starsY = g_TowerLevel % STARS_BACK_HEIGHT;
-    int starsX = (int)((360.0f - g_TowerAngle) * STARS_MULTIPLIER);
+    int starsX = (int)((ANGLE_360 - g_TowerAngle) * STARS_MULTIPLIER);
     Uint32 colorStars = SDL_MapRGB(g_Screen->format, 255,255,255);
     for (int i = 0; i < STARCOUNT; i++)
     {
@@ -398,10 +347,11 @@ void DrawBackground()
 
 void DrawWater()
 {
+    SDL_Rect rc;
+
     if (g_WaterY < POSY_VIEWPORT_BOTTOM)
     {
         int waterh = POSY_VIEWPORT_BOTTOM - g_WaterY;
-        SDL_Rect rc;
         rc.x = POSX_VIEWPORT_MARGIN;  rc.y = g_WaterY;
         rc.w = POSX_VIEWPORT_WIDTH;  rc.h = 4;
         for (int i = 0; i < waterh; i += 4)
@@ -414,24 +364,13 @@ void DrawWater()
     }
 }
 
-void DrawTower()
+void DrawTowerBricks()
 {
-    GamePrepareTowerBricks();
+    DrawPrepareTowerBricks();
 
-    SDL_Rect rc;
     SDL_Rect src, dest;
-
-    // Find first brick line to draw
-    int y = g_WaterY - POSY_BRICK_HEIGHT;
-    int line = 0;
-    while (y > POSY_VIEWPORT_TOP && line < g_TowerHeight)  //TODO: Optimize the loop
-    {
-        y -= POSY_BRICK_HEIGHT;
-        line++;
-    }
-
-    int topline = line;
-    int topliney = y;
+    int line = g_TowerTopLine;
+    int y = g_TowerTopLineY;
 
     // Draw bricks
     if ((line & 1) == 0)  // Start with even line => draw one line
@@ -449,7 +388,7 @@ void DrawTower()
     {
         if (y + POSY_BRICK_HEIGHT >= POSY_VIEWPORT_BOTTOM)
         {
-            src.x = 0;  src.y = 0;
+            src.x = src.y = 0;
             src.w = g_TowerBricks->w;  src.h = POSY_BRICK_HEIGHT;
             dest.x = SCREEN_WIDTH / 2 - TOWER_RADIUS;  dest.y = y - 1;
             dest.w = g_TowerBricks->w;  dest.h = POSY_BRICK_HEIGHT;
@@ -460,7 +399,7 @@ void DrawTower()
             break;
         }
 
-        src.x = 0;  src.y = 0;
+        src.x = src.y = 0;
         src.w = g_TowerBricks->w;  src.h = g_TowerBricks->h;
         dest.x = SCREEN_WIDTH / 2 - TOWER_RADIUS;  dest.y = y - 1;
         dest.w = g_TowerBricks->w;  dest.h = g_TowerBricks->h;
@@ -472,119 +411,163 @@ void DrawTower()
         if (y >= POSY_VIEWPORT_BOTTOM || y >= g_WaterY)
             break;
     }
+}
 
-    line = topline;
-    y = topliney;
+void DrawDoorBlock(int x1, int x2, int y)
+{
+    SDL_Rect rc;
 
-    // Draw tower extras
-    for (; y < POSY_VIEWPORT_BOTTOM; y += POSY_BRICK_HEIGHT)
+    if (x1 > x2 + 4)  // Black part
     {
-        // Draw tower steps, doors, elevators etc.
-        float angle = 0.0f;
-        for (int i = 0; i < 16; i++)
-        {
-            int iprev = i - 1;  if (iprev < 0) iprev = 15;
-            Uint8 towerlinech = Level_GetTowerData(line, 15 - i);  // Current object to draw
-            Uint8 towerlineprevch = Level_GetTowerData(line, 15 - iprev);  // Previous object
+        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
+        rc.w = x1 - x2;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_colorBlack);
+    }
+    if (x1 > x2)  // Door bars at left and right
+    {
+        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
+        rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
+        rc.x = POSX_TOWER_CENTER + x1 - 2;  rc.y = y;
+        rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
+    }
+}
+void DrawStickBlock(int ex, int y)
+{
+    SDL_Rect rc;
 
-            float angle1 = angle + g_TowerAngle;
-            if (angle1 >= 360.0f) angle1 -= 360.0f;
-            float angle2 = angle1 + 22.5f;
-            if (angle2 >= 360.0f) angle2 -= 360.0f;
+    rc.x = POSX_TOWER_CENTER + ex - TOWER_STICK_RADIUS;  rc.y = y;
+    rc.w = TOWER_STICK_RADIUS * 2;  rc.h = POSY_BRICK_HEIGHT - 1;
+    SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
+    rc.x = POSX_TOWER_CENTER + ex + TOWER_STICK_RADIUS - 4;  rc.y = y;
+    rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
+    SDL_FillRect(g_Screen, &rc, g_TowerColor);
+}
+void DrawElevatorBlock(int ex, int y)
+{
+    SDL_Rect rc;
 
-            if (angle2 < 180.0f + 22.5f || angle1 > 360.0f - 22.5f)
-            {
-                float fx1 = cos(angle1 * PI / 180.0f) * TOWER_RADIUS;
-                int x1 = (int)(fx1 + 0.5);
-                float fx2 = cos(angle2 * PI / 180.0f) * TOWER_RADIUS;
-                int x2 = (int)(fx2 + 0.5);
+    rc.x = POSX_TOWER_CENTER + ex - TOWER_LIFT_RADIUS;  rc.y = y;
+    rc.w = TOWER_LIFT_RADIUS * 2;  rc.h = POSY_BRICK_HEIGHT - 1;
+    SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
+    rc.x = POSX_TOWER_CENTER + ex + TOWER_LIFT_RADIUS - 6;  rc.y = y;
+    rc.w = 4;  rc.h = POSY_BRICK_HEIGHT - 1;
+    SDL_FillRect(g_Screen, &rc, g_TowerColor);
+}
+void DrawStepBlock(int x1, int x2, int sx1, int sx2, int y, int isprevplatform, int isnextplatform)
+{
+    SDL_Rect rc;
 
-                // Doors
-                if (Level_IsDoor(towerlinech))
-                {
-                    Uint32 colorDoor = (towerlinech == TB_DOOR_TARGET) ? g_colorTarget : g_colorBlack;
-                    if (x1 > x2)
-                    {
-                        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
-                        rc.w = x1 - x2;  rc.h = POSY_BRICK_HEIGHT;
-                        SDL_FillRect(g_Screen, &rc, colorDoor);
-                    }
-                    if (x1 >= x2)
-                    {
-                        // Door bars at left and right
-                        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
-                        rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
-                        rc.x = POSX_TOWER_CENTER + x1 - 2;  rc.y = y;
-                        rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
-                    }
-                }
-                // Elevators
-                else if (towerlinech == TB_ELEV_BOTTOM)
-                {
-                    float fex = cos((angle1 + 11.25f) * PI / 180.0f) * TOWER_LIFTC_RADIUS;
-                    int ex = (int)(fex + 0.5);  // Lift center position
-                    {
-                        rc.x = POSX_TOWER_CENTER + ex - TOWER_LIFT_RADIUS;  rc.y = y;
-                        rc.w = TOWER_LIFT_RADIUS * 2;  rc.h = POSY_BRICK_HEIGHT - 1;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
-                    }
-                }
-                // Steps
-                else if (Level_IsPlatform(towerlinech))
-                {
-                    float fsx1 = cos(angle1 * PI / 180.0f) * TOWER_STEPS_RADIUS;
-                    int sx1 = (int)(fsx1 + 0.5);
-                    float fsx2 = cos(angle2 * PI / 180.0f) * TOWER_STEPS_RADIUS;
-                    int sx2 = (int)(fsx2 + 0.5);
-                    if (sx1 > sx2)
-                    {
-                        rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
-                        rc.w = sx1 - sx2;  rc.h = POSY_BRICK_HEIGHT;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
-                    }
-                    if (x1 > sx1 && !Level_IsPlatform(towerlineprevch))
-                    {
-                        rc.x = POSX_TOWER_CENTER + sx1;  rc.y = y;
-                        rc.w = x1 - sx1;  rc.h = POSY_BRICK_HEIGHT;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
-                    }
-                    {  // Small bar at right edge of the step
-                        rc.x = POSX_TOWER_CENTER + sx1 - 1;  rc.y = y;
-                        rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColor);
-                    }
-                    if (sx2 > x2)
-                    {
-                        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
-                        rc.w = sx2 - x2;  rc.h = POSY_BRICK_HEIGHT;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
-                    }
-                    {  // Small bar at left edge of the step
-                        rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
-                        rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColor);
-                    }
-                }
-                // Sticks
-                else if (towerlinech == TB_STICK)
-                {
-                    float fex = cos((angle1 + 11.25f) * PI / 180.0f) * TOWER_STICKC_RADIUS;
-                    int ex = (int)(fex + 0.5);  // Stick center position
-                    {
-                        rc.x = POSX_TOWER_CENTER + ex - TOWER_STICK_RADIUS;  rc.y = y;
-                        rc.w = TOWER_STICK_RADIUS * 2;  rc.h = POSY_BRICK_HEIGHT - 1;
-                        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
-                    }
-                }
-            }
-            
-            angle += 22.5f;  // 16 bricks
-        }
+    if (sx1 > sx2)
+    {
+        rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
+        rc.w = sx1 - sx2;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
+    }
+    if (x1 > sx1 && !isprevplatform)
+    {
+        rc.x = POSX_TOWER_CENTER + sx1;  rc.y = y;
+        rc.w = x1 - sx1;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
+    }
+    {  // Small bar at right edge of the step
+        rc.x = POSX_TOWER_CENTER + sx1 - 1;  rc.y = y;
+        rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColor);
+    }
+    if (sx2 > x2 && !isnextplatform)
+    {
+        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
+        rc.w = sx2 - x2;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
+    }
+    {  // Small bar at left edge of the step
+        rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
+        rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColor);
+    }
+}
 
-        line--;
+// Draw tower extras (steps, doors, elevators etc.) for all line in one column
+void DrawTowerColumn(int i, float angle1, float angle2)
+{
+    float cos1 = cos(angle1 * PI / ANGLE_180);
+    float cos2 = cos(angle2 * PI / ANGLE_180);
+    float coscenter = cos((angle1 + ANGLE_HALFBLOCK) * PI / ANGLE_180);
+    int x1 = (int)(cos1 * TOWER_RADIUS + 0.5);
+    int x2 = (int)(cos2 * TOWER_RADIUS + 0.5);
+    int sx1 = (int)(cos1 * TOWER_STEPS_RADIUS + 0.5);
+    int sx2 = (int)(cos2 * TOWER_STEPS_RADIUS + 0.5);
+
+    int line = g_TowerTopLine;
+    for (int y = g_TowerTopLineY; y < POSY_VIEWPORT_BOTTOM; y += POSY_BRICK_HEIGHT, line--)
+    {
         if (line < 0) break;
+
+        Uint8 towerlinetb = Level_GetTowerData(line, 15 - i);  // Current tower block to draw
+        int iprev = i - 1;  if (iprev < 0) iprev = 15;
+        Uint8 towerlineprevtb = Level_GetTowerData(line, 15 - iprev);  // Previous block
+        int inext = i + 1;  if (inext >= 16) inext = 0;
+        Uint8 towerlinenexttb = Level_GetTowerData(line, 15 - inext);  // Next block
+
+        // Doors
+        if (Level_IsDoor(towerlinetb))
+        {
+            DrawDoorBlock(x1, x2, y);
+        }
+        // Elevators
+        else if (towerlinetb == TB_ELEV_BOTTOM)
+        {
+            int ex = (int)(coscenter * TOWER_LIFTC_RADIUS + 0.5);  // Lift center position
+
+            DrawElevatorBlock(ex, y);
+        }
+        // Steps
+        else if (Level_IsPlatform(towerlinetb))
+        {
+            DrawStepBlock(x1, x2, sx1, sx2, y,
+                Level_IsPlatform(towerlineprevtb), Level_IsPlatform(towerlinenexttb));
+        }
+        // Sticks
+        else if (towerlinetb == TB_STICK)
+        {
+            int ex = (int)(coscenter * TOWER_STICKC_RADIUS + 0.5);  // Stick center position
+
+            DrawStickBlock(ex, y);
+        }
+    }
+}
+
+void DrawTower()
+{
+    // Calculate first block line to draw
+    int y = g_WaterY - POSY_BRICK_HEIGHT;
+    int line = 0;
+    while (y > POSY_VIEWPORT_TOP && line < g_TowerHeight)  //TODO: Optimize the loop
+    {
+        y -= POSY_BRICK_HEIGHT;
+        line++;
+    }
+    g_TowerTopLine = line;
+    g_TowerTopLineY = y;
+
+    // Draw tower body
+    DrawTowerBricks();
+
+    // Draw tower extras: steps, doors, elevators etc.
+    float angle = 0.0f;
+    for (int i = 0; i < 16; i++, angle += ANGLE_BLOCK)
+    {
+        float angle1 = angle + g_TowerAngle;
+        if (angle1 >= ANGLE_360) angle1 -= ANGLE_360;
+        float angle2 = angle1 + ANGLE_BLOCK;
+        if (angle2 >= ANGLE_360) angle2 -= ANGLE_360;
+
+        if (angle2 < ANGLE_180 + ANGLE_BLOCK || angle1 > ANGLE_360 - ANGLE_BLOCK)
+        {
+            DrawTowerColumn(i, angle1, angle2);
+        }
     }
 }
 
@@ -594,8 +577,14 @@ void DrawPogo()
     int sprite;
     switch (g_PogoState)
     {
-    case POGO_R_STAY:   sprite = SPRITE_POGO_R_STAY;  break;
-    case POGO_L_STAY:   sprite = SPRITE_POGO_L_STAY;  break;
+    case POGO_R_STAY:
+    case POGO_R_LIFT:
+        sprite = SPRITE_POGO_R_STAY;
+        break;
+    case POGO_L_STAY:
+    case POGO_L_LIFT:
+        sprite = SPRITE_POGO_L_STAY;
+        break;
     case POGO_R_WALK:
     case POGO_L_WALK:
         sprite = (g_PogoState & POGO_MASK_DIR) ? SPRITE_POGO_R_WALK1 : SPRITE_POGO_L_WALK1;
@@ -630,11 +619,24 @@ void DrawPogo()
     DrawSprite(sprite, POSX_VIEWPORT_CENTER - POSX_POGO_HALFWIDTH, y);
 }
 
+void DrawSnowball()
+{
+    if (g_SnowballDirection == 0) return;
+
+    float angle = fmod(g_SnowballAngle + g_TowerAngle, ANGLE_360);
+    if (angle < ANGLE_180 + ANGLE_BLOCK || angle > ANGLE_360 - ANGLE_BLOCK)
+    {
+        float cossnb = cos(angle * PI / ANGLE_180);
+        int x = (int)(cossnb * TOWER_SNOWBALLC_RADIUS + 0.5);
+        int y = POSY_POGO_BASE - g_SnowballLevel + g_TowerLevel;
+        DrawSprite(SPRITE_SNOWBALL, POSX_TOWER_CENTER + x - 4, y - 4);
+    }
+}
+
 void DrawGameScreen()
 {
-    SDL_Rect rc;
-
     // Clear top area and viewport
+    SDL_Rect rc;
     rc.x = POSX_VIEWPORT_MARGIN;  rc.y = 8;  rc.w = POSX_VIEWPORT_WIDTH; rc.h = POSY_VIEWPORT_BOTTOM - 8;
     SDL_FillRect(g_Screen, &rc, g_colorBlack);
 
@@ -651,6 +653,7 @@ void DrawGameScreen()
 
         DrawTower();
 
+        DrawSnowball();
         DrawPogo();
 
         DrawWater();
@@ -668,14 +671,18 @@ void DrawGameScreen()
     //SDL_BlitSurface(g_TowerBricks, &src, g_Screen, &dest);
 }
 
+/////////////////////////////////////////////////////////////////////////////
+
+
 void GameStart()
 {
     // Prepare Pogo
     g_PogoState = POGO_R_STAY;
     g_ControlState = CONTROL_NONE;
+    g_SnowballDirection = 0;
 
     // Prepare tower
-    g_TowerAngle = 90.0f + 11.25f;
+    g_TowerAngle = 90.0f + ANGLE_HALFBLOCK;
     g_TowerLevel = POSY_BRICK_HEIGHT * 2;
 
     Level_SelectTower(0);
@@ -683,7 +690,7 @@ void GameStart()
     g_TowerHeight = Level_GetTowerSize();
     g_TowerColor = Level_GetTowerColor();
 
-    // Prepare colors
+    // Prepare tower colors
     Uint8 r, g, b;
     SDL_GetRGB(g_TowerColor, g_Screen->format, &r,&g,&b);
     Uint16 rd, gd, bd;
@@ -750,6 +757,10 @@ void GameProcessEvent(SDL_Event evt)
     {
         switch (evt.key.keysym.sym)
         {
+        case SDLK_LCTRL:   // A button on Dingoo
+        case SDLK_SPACE:
+            g_ControlState &= ~CONTROL_FIRE;
+            break;
         case SDLK_LEFT:
             g_ControlState &= ~CONTROL_LEFT;
             break;
@@ -768,10 +779,40 @@ void GameProcessEvent(SDL_Event evt)
     }
 }
 
+void GameCalculatePosition()
+{
+    // Find tower blocks under Pogo (g_BaseLine) and behind Pogo (curline)
+    g_BaseLine = (g_TowerLevel / 8) - 1;
+    int curline = g_BaseLine + 1;
+    float angle = fmod(g_TowerAngle - 90.0f + ANGLE_360, ANGLE_360);
+    g_BaseLineIndex = (int)(angle / ANGLE_BLOCK);
+    g_BaseLineTB = TB_EMPTY;
+    if (g_BaseLine >= 0 && g_BaseLine < g_TowerHeight)
+        g_BaseLineTB = Level_GetTowerData(g_BaseLine, g_BaseLineIndex);
+    g_CurLineTB = TB_EMPTY;
+    if (curline >= 0 && curline < g_TowerHeight)
+        g_CurLineTB = Level_GetTowerData(curline, g_BaseLineIndex);
+}
+
 // Process long-time logic
 // Returns: 1 - process futher logic and controls, 0 - don't process other logic
 int GameProcessLogicCont()
 {
+    // Move snowball
+    if (g_SnowballDirection != 0)
+    {
+        float delta = 2.5f * 2;
+        g_SnowballAngle -= delta * g_SnowballDirection;
+        if (g_SnowballAngle > ANGLE_360) g_SnowballAngle -= ANGLE_360;
+        else if (g_SnowballAngle < 0.0f) g_SnowballAngle += ANGLE_360;
+        g_SnowballAnglePassed += delta;
+        if (fmod(g_SnowballAnglePassed + 0.01f, 2.5f * 2 * 4) < 0.02f)
+            g_SnowballLevel++;
+
+        if (g_SnowballAnglePassed > 90.0f + ANGLE_HALFBLOCK)
+            g_SnowballDirection = 0;
+    }
+
     // Pogo moves thru door and tunnel
     if ((g_PogoState & POGO_MASK_STATE) == POGO_DOOR)
     {
@@ -820,6 +861,18 @@ int GameProcessLogicCont()
         }
     }
 
+    // Lift
+    if ((g_PogoState & POGO_MASK_STATE) == POGO_LIFT)
+    {
+        if (g_TowerLevel % POSY_BRICK_HEIGHT == 0 && Level_IsStation(g_BaseLineTB))  // Arrived to station, stop the lift
+        {
+            g_PogoState = POGO_STAY | (g_PogoState & POGO_MASK_DIR);
+            return 1;
+        }
+        g_MoveY = g_LiftDirection;
+        return 0;
+    }
+
     //TODO: turning
 
     // Drowns
@@ -837,18 +890,6 @@ int GameProcessLogicCont()
 // Returns: 1 - process controls, 0 - don't process controls
 int GameProcessLogic()
 {
-    // Find tower blocks under Pogo (baseline) and behind Pogo (curline)
-    int baseline = (g_TowerLevel / 8) - 1;
-    int curline = baseline + 1;
-    float angle = fmod(g_TowerAngle - 90.0f + 360.0f, 360.0f);
-    int linei = (int)(angle / 22.5f);
-    g_BaseLineTB = TB_EMPTY;
-    if (baseline >= 0 && baseline < g_TowerHeight)
-        g_BaseLineTB = Level_GetTowerData(baseline, linei);
-    g_CurLineTB = TB_EMPTY;
-    if (curline >= 0 && curline < g_TowerHeight)
-        g_CurLineTB = Level_GetTowerData(curline, linei);
-
     // Check if Pogo drown or falling
     if (g_TowerLevel <= 0)
     {
@@ -867,7 +908,7 @@ int GameProcessLogic()
 
     if (g_BaseLineTB == TB_STEP_VANISHER)
     {
-        Level_RemoveVanishStep(baseline, linei);
+        Level_RemoveVanishStep(g_BaseLine, g_BaseLineIndex);
         g_MoveY = -1;
         g_PogoState = POGO_FALL | (g_PogoState & POGO_MASK_DIR);
         return 0;
@@ -900,6 +941,21 @@ int GameProcessLogic()
     }
 
     return 1;
+}
+
+// Put Pogo to center of the current tower block
+void GameAlignTowerAngle()
+{
+     float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_HALFBLOCK;
+     g_TowerAngle -= comp;
+     if (g_TowerAngle > ANGLE_360) g_TowerAngle -= ANGLE_360;
+     if (g_TowerAngle < 0.0f) g_TowerAngle += ANGLE_360;
+}
+
+void GameActivateLift(int direction)
+{
+    g_LiftDirection = direction;
+    g_MoveY = direction;
 }
 
 // Process controlled logic like moving / turning / jumping
@@ -944,16 +1000,32 @@ void GameProcessControls()
             g_PogoState = POGO_L_STAY | (g_PogoState & POGO_MASK_DIR);
     }
 
-    //TODO: Lift up and lift down
+    // Lift up and lift down
+    if ((g_ControlState & CONTROL_UP) && Level_IsUpStation(g_BaseLineTB))
+    {
+        GameAlignTowerAngle();
+        g_PogoState = POGO_LIFT | (g_PogoState & POGO_MASK_DIR);
+        GameActivateLift(1);
+        return;
+    }
+    if ((g_ControlState & CONTROL_DOWN) && Level_IsDownStation(g_BaseLineTB))
+    {
+        GameAlignTowerAngle();
+        g_PogoState = POGO_LIFT | (g_PogoState & POGO_MASK_DIR);
+        GameActivateLift(-1);
+        return;
+    }
+
     // Door
     if ((g_ControlState & CONTROL_UP) && (g_PogoState & POGO_MASK_STATE) == POGO_STAY && Level_IsDoor(g_CurLineTB))
     {
-        //TODO: Normalize angle first
-        g_Pogo180Angle = fmod(g_TowerAngle + 180.0f, 360.0f);
+        GameAlignTowerAngle();
+        g_Pogo180Angle = fmod(g_TowerAngle + ANGLE_180, ANGLE_360);
         g_PogoState = POGO_DOOR | (g_PogoState & POGO_MASK_DIR);
         g_PogoMovtPhase = -12;
         return;
     }
+
     // Jump
     if ((g_ControlState & CONTROL_UP) && (g_PogoState & POGO_MASK_STATE) == POGO_WALK)
     {
@@ -962,17 +1034,24 @@ void GameProcessControls()
         g_PogoMovtPhase = 0;
     }
 
-    if (g_ControlState & CONTROL_FIRE)
+    // Throw snowball
+    if ((g_ControlState & CONTROL_FIRE) && g_SnowballDirection == 0)
     {
-        //TODO: Throw snowball
+        g_SnowballAngle = ANGLE_360 - g_TowerAngle + 90.0f;
+        g_SnowballLevel = g_TowerLevel + 6;
+        g_SnowballDirection = (g_PogoState & POGO_MASK_DIR) ? 1 : -1;
+        g_SnowballAnglePassed = 0;
     }
 }
 
 void GameProcess()
 {
+    GameCalculatePosition();
+
     // Check if Pogo died in the water
     if (g_TowerLevel < -POSY_POGO_HEIGHT * 2)
     {
+        //TODO: Move to main() function level
         GameStart();  // Restart level
         return;
     }
@@ -990,10 +1069,8 @@ void GameMoveTower()
     if (g_MoveX != 0)
     {
         g_TowerAngle += 2.5f * g_MoveX;
-        if (g_TowerAngle >= 360.0f)
-            g_TowerAngle -= 360.0f;
-        else if (g_TowerAngle < 0.0f)
-            g_TowerAngle += 360.0f;
+        if (g_TowerAngle >= ANGLE_360) g_TowerAngle -= ANGLE_360;
+        else if (g_TowerAngle < 0.0f) g_TowerAngle += ANGLE_360;
         g_MoveX = 0;
     }
     if (g_MoveY != 0)
@@ -1002,6 +1079,9 @@ void GameMoveTower()
         g_MoveY = 0;
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////
+// Menu
 
 void MenuStart()
 {
@@ -1047,6 +1127,9 @@ void MenuProcessEvent(SDL_Event evt)
     }
 }
 
+
+/////////////////////////////////////////////////////////////////////////////
+
 #ifdef _WIN32
 #undef main  //HACK for VC error LNK1561: entry point must be defined
 #endif
@@ -1054,7 +1137,7 @@ void MenuProcessEvent(SDL_Event evt)
 int main(int argc, char * argv[])
 {
 #ifdef _WIN32
-    _putenv("SDL_VIDEO_WINDOW_POS=250,200");
+    _putenv("SDL_VIDEO_WINDOW_POS=300,200");
 #endif
 
     // Init randomizer
@@ -1090,7 +1173,6 @@ int main(int argc, char * argv[])
             g_Screen->format->Rmask, g_Screen->format->Gmask, g_Screen->format->Bmask, g_Screen->format->Amask); 
 
         g_colorBlack = SDL_MapRGB(g_Screen->format, 0,0,0);
-        g_colorTarget = SDL_MapRGB(g_Screen->format, 40,96,40);
     }
 
     MenuStart();
@@ -1159,3 +1241,5 @@ int main(int argc, char * argv[])
 
     return 0;
 }
+
+/////////////////////////////////////////////////////////////////////////////
