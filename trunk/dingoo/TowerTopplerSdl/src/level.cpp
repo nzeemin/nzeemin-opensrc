@@ -38,7 +38,7 @@ static TowerBlocks[NUM_TBLOCKS] =
     { "robot 5",          '5', TBF_EMPTY|TBF_DEADLY|TBF_ROBOT },
     { "robot 6",          '6', TBF_EMPTY|TBF_DEADLY|TBF_ROBOT },
     { "robot 7",          '7', TBF_EMPTY|TBF_DEADLY|TBF_ROBOT },
-    { "stick",            '!', /*TBF_PLATFORM*/ },
+    { "stick",            '!', 0/*TBF_PLATFORM*/ },
     { "step",             '-', TBF_PLATFORM },
     { "vanisher step",    '.', TBF_PLATFORM },
     { "slider > step",    '>', TBF_PLATFORM },
@@ -52,8 +52,8 @@ static TowerBlocks[NUM_TBLOCKS] =
     { "lift top",          0,  TBF_STATION|TBF_PLATFORM },
     { "lift middle",       0,  TBF_STATION|TBF_PLATFORM },
     { "lift bottom",      '^', TBF_STATION|TBF_PLATFORM },
-    { "stick at door",     0,  },
-    { "stick at target",   0,  },
+    { "stick at door",     0,  0 },
+    { "stick at target",   0,  0 },
     { "lift at door",      0 , TBF_STATION|TBF_PLATFORM },
     { "lift at target",    0 , TBF_STATION|TBF_PLATFORM },
 };
@@ -109,7 +109,7 @@ void Level_SelectTower(int tower)
     const char** data = g_Mission1Towers[g_Level_TowerNumber].data;
     for (int row = 0; row < g_Level_TowerHeight; row++)
     {
-        const char* line = g_Mission1Towers[g_Level_TowerNumber].data[g_Level_TowerHeight - row - 1];
+        const char* line = data[g_Level_TowerHeight - row - 1];
         for (int col = 0; col < TOWERWID; col++)
         {
             g_Level_Tower[row][col] = conv_char2towercode(line[col]);
@@ -155,6 +155,10 @@ int Level_IsStation(Uint8 data)
 {
     return ((TowerBlocks[data].tf & TBF_STATION) != 0);
 }
+int Level_IsRobot(Uint8 data)
+{
+    return ((TowerBlocks[data].tf & TBF_ROBOT) != 0);
+}
 
 void Level_RemoveVanishStep(int row, int col)
 {
@@ -162,4 +166,8 @@ void Level_RemoveVanishStep(int row, int col)
     {
         g_Level_Tower[row][col] = TB_EMPTY;
     }
+}
+void Level_ClearBlock(int row, int col)
+{
+    g_Level_Tower[row][col] = TB_EMPTY;
 }
