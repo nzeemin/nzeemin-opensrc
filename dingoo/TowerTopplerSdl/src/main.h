@@ -16,6 +16,8 @@
 const float PI                  = 3.14159265358979323f;
 const float ANGLE_360           = 360.0f;
 const float ANGLE_180           = 180.0f;
+const float ANGLE_270           = 270.0f;
+const float ANGLE_90            = 90.0f;
 const float ANGLE_BLOCK         = 22.5f;  // 16 blocks
 const float ANGLE_HALFBLOCK     = 11.25f;
 
@@ -26,6 +28,7 @@ const float ANGLE_HALFBLOCK     = 11.25f;
 #define TOWER_STICKC_RADIUS     (TOWER_RADIUS + 15)
 #define TOWER_STICK_RADIUS      6
 #define TOWER_SNOWBALLC_RADIUS  (TOWER_RADIUS + 15)
+#define TOWER_ROBOTC_RADIUS     (TOWER_RADIUS + 15)
 #define POSY_BRICK_HEIGHT       8
 #define POSX_VIEWPORT_MARGIN    6
 #define POSY_VIEWPORT_TOP       44
@@ -43,6 +46,7 @@ const float ANGLE_HALFBLOCK     = 11.25f;
 #define STARS_BACK_WIDTH        (360 * STARS_MULTIPLIER + SCREEN_WIDTH)
 #define STARCOUNT               50
 
+//TODO: Split state and direction
 enum PogoStateEnum
 {
     // Masks and masked values
@@ -135,6 +139,7 @@ Uint8 Level_GetTowerData(int row, int col);
 int Level_IsPlatform(Uint8 data);
 int Level_IsEmpty(Uint8 data);
 int Level_IsStation(Uint8 data);
+int Level_IsRobot(Uint8 data);
 inline int Level_IsDoor(Uint8 data)
 {
     return (data == TB_DOOR || data == TB_DOOR_TARGET || data == TB_STICK_DOOR);
@@ -153,13 +158,17 @@ inline int Level_IsDownStation(Uint8 data)
 }
 
 void Level_RemoveVanishStep(int row, int col);
+void Level_ClearBlock(int row, int col);
 
 
 /////////////////////////////////////////////////////////////////////////////
 // Robots
 
+#define MAX_OBJECTS 4
+
 // Values for kinds of robots
-typedef enum RobotKinds {
+typedef enum RobotKindEnum
+{
   OBJ_KIND_NOTHING,
   OBJ_KIND_JUMPBALL,
   OBJ_KIND_FREEZEBALL,
@@ -171,6 +180,26 @@ typedef enum RobotKinds {
   OBJ_KIND_ROBOT_VERT,
   OBJ_KIND_ROBOT_HORIZ
 };
+
+void Robot_Initialize();
+void Robot_New(int toplevel);
+void Robot_Update();
+RobotKindEnum Robot_GetKind(int rob);
+float Robot_GetAngle(int rob);
+int Robot_GetLevel(int rob);
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Elevators
+
+#define MAX_ELE 10
+
+void Elevator_Initialize();
+void Elevator_Activate(int direction);
+void Elevator_Move();
+int Elevator_IsAtStop();
+void Elevator_Deactivate();
+void Elevator_Update();
 
 
 /////////////////////////////////////////////////////////////////////////////

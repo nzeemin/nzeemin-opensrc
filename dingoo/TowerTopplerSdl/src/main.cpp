@@ -51,6 +51,7 @@ int     g_MoveY = 0;            // Tower move in the current frame: -2, 0, 2
 int     g_ControlState;         // See ControlStateEnum
 int     g_PogoState;            // See PogoStateEnum
 int     g_PogoMovtPhase;        // Pogo movement phase
+int     g_FallingDirection;     // Pogo falling direction: -1, 0, 1
 float   g_Pogo180Angle;         // Target angle for 180 degree rotation
 int     g_LiftDirection;        // Lift movement direction: -1 or 1
 float   g_SnowballAnglePassed;
@@ -123,6 +124,7 @@ enum SpriteEnum
     SPRITE_LIFE,
     SPRITE_FONT_TIMER,
     SPRITE_FONT_8X8,
+    SPRITE_ROBOT,
     SPRITECOUNT
 };
 
@@ -163,6 +165,7 @@ g_SpriteCoords[SPRITECOUNT] =   // List of sprites coords, in order of SpriteEnu
     {   1,  53,  11,   9 },  // SPRITE_LIFE
     {   1,  88, 160,  23 },  // SPRITE_FONT_TIMER
     {   1, 113, 128,  40 },  // SPRITE_FONT_8X8
+    { 163,  85,  20,  20 },  // SPRITE_ROBOT
 };
 
 
@@ -273,19 +276,19 @@ void DrawPrepareTowerBricks()
         SDL_FillRect(g_TowerBricks, &rc, g_TowerColorDark);
 
         // Draw vert lines
-        float angle = g_TowerAngle;
-        if (line  == 1) angle += ANGLE_HALFBLOCK;
-        angle = fmod(angle, ANGLE_BLOCK);
+        float angle = ANGLE_90 - ANGLE_BLOCK + fmod(ANGLE_360 - g_TowerAngle, ANGLE_BLOCK);
+        if (line == 1) angle += ANGLE_HALFBLOCK;
+        angle = fmod(angle, ANGLE_360);
         for (int i = 0; i < 8; i++)
         {
-            float fx = cos(angle * PI / ANGLE_180) * TOWER_RADIUS;
+            float fx = sin(angle * PI / ANGLE_180) * TOWER_RADIUS;
             int x = (int)(fx + 0.5);
             rc.x = TOWER_RADIUS + x - 1;  rc.y = y;
             rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
             SDL_FillRect(g_TowerBricks, &rc, g_TowerColorDark);
 
-            angle += ANGLE_BLOCK;
-            if (angle >= ANGLE_180) break;
+            angle -= ANGLE_BLOCK;
+            if (angle < 0) angle += ANGLE_360;
         }
 
         y += POSY_BRICK_HEIGHT;
@@ -417,18 +420,18 @@ void DrawDoorBlock(int x1, int x2, int y)
 {
     SDL_Rect rc;
 
-    if (x1 > x2 + 4)  // Black part
+    if (x2 > x1 + 4)  // Black part
     {
-        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
-        rc.w = x1 - x2;  rc.h = POSY_BRICK_HEIGHT;
+        rc.x = POSX_TOWER_CENTER + x1;  rc.y = y;
+        rc.w = x2 - x1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_colorBlack);
     }
-    if (x1 > x2)  // Door bars at left and right
+    if (x2 > x1)  // Door bars at left and right
     {
-        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
+        rc.x = POSX_TOWER_CENTER + x1;  rc.y = y;
         rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
         SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
-        rc.x = POSX_TOWER_CENTER + x1 - 2;  rc.y = y;
+        rc.x = POSX_TOWER_CENTER + x2 - 2;  rc.y = y;
         rc.w = 2;  rc.h = POSY_BRICK_HEIGHT - 1;
         SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
     }
@@ -459,31 +462,31 @@ void DrawStepBlock(int x1, int x2, int sx1, int sx2, int y, int isprevplatform, 
 {
     SDL_Rect rc;
 
-    if (sx1 > sx2)
-    {
-        rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
-        rc.w = sx1 - sx2;  rc.h = POSY_BRICK_HEIGHT;
-        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
-    }
-    if (x1 > sx1 && !isprevplatform)
+    if (sx1 < sx2)
     {
         rc.x = POSX_TOWER_CENTER + sx1;  rc.y = y;
-        rc.w = x1 - sx1;  rc.h = POSY_BRICK_HEIGHT;
+        rc.w = sx2 - sx1;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
+    }
+    if (x1 < sx1 && !isprevplatform)
+    {
+        rc.x = POSX_TOWER_CENTER + x1;  rc.y = y;
+        rc.w = sx1 - x1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
     }
     {  // Small bar at right edge of the step
-        rc.x = POSX_TOWER_CENTER + sx1 - 1;  rc.y = y;
+        rc.x = POSX_TOWER_CENTER + sx2 - 1;  rc.y = y;
         rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColor);
     }
-    if (sx2 > x2 && !isnextplatform)
+    if (sx2 < x2 && !isnextplatform)
     {
-        rc.x = POSX_TOWER_CENTER + x2;  rc.y = y;
-        rc.w = sx2 - x2;  rc.h = POSY_BRICK_HEIGHT;
+        rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
+        rc.w = x2 - sx2;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
     }
     {  // Small bar at left edge of the step
-        rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
+        rc.x = POSX_TOWER_CENTER + sx1;  rc.y = y;
         rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColor);
     }
@@ -492,24 +495,24 @@ void DrawStepBlock(int x1, int x2, int sx1, int sx2, int y, int isprevplatform, 
 // Draw tower extras (steps, doors, elevators etc.) for all line in one column
 void DrawTowerColumn(int i, float angle1, float angle2)
 {
-    float cos1 = cos(angle1 * PI / ANGLE_180);
-    float cos2 = cos(angle2 * PI / ANGLE_180);
-    float coscenter = cos((angle1 + ANGLE_HALFBLOCK) * PI / ANGLE_180);
-    int x1 = (int)(cos1 * TOWER_RADIUS + 0.5);
-    int x2 = (int)(cos2 * TOWER_RADIUS + 0.5);
-    int sx1 = (int)(cos1 * TOWER_STEPS_RADIUS + 0.5);
-    int sx2 = (int)(cos2 * TOWER_STEPS_RADIUS + 0.5);
+    float sin1 = sin(angle1 * PI / ANGLE_180);
+    float sin2 = sin(angle2 * PI / ANGLE_180);
+    float sincenter = sin((angle1 + ANGLE_HALFBLOCK) * PI / ANGLE_180);
+    int x1 = (int)(sin1 * TOWER_RADIUS + 0.5);
+    int x2 = (int)(sin2 * TOWER_RADIUS + 0.5);
+    int sx1 = (int)(sin1 * TOWER_STEPS_RADIUS + 0.5);
+    int sx2 = (int)(sin2 * TOWER_STEPS_RADIUS + 0.5);
 
     int line = g_TowerTopLine;
     for (int y = g_TowerTopLineY; y < POSY_VIEWPORT_BOTTOM; y += POSY_BRICK_HEIGHT, line--)
     {
         if (line < 0) break;
 
-        Uint8 towerlinetb = Level_GetTowerData(line, 15 - i);  // Current tower block to draw
+        Uint8 towerlinetb = Level_GetTowerData(line, i);  // Current tower block to draw
         int iprev = i - 1;  if (iprev < 0) iprev = 15;
-        Uint8 towerlineprevtb = Level_GetTowerData(line, 15 - iprev);  // Previous block
+        Uint8 towerlineprevtb = Level_GetTowerData(line, iprev);  // Previous block
         int inext = i + 1;  if (inext >= 16) inext = 0;
-        Uint8 towerlinenexttb = Level_GetTowerData(line, 15 - inext);  // Next block
+        Uint8 towerlinenexttb = Level_GetTowerData(line, inext);  // Next block
 
         // Doors
         if (Level_IsDoor(towerlinetb))
@@ -519,7 +522,7 @@ void DrawTowerColumn(int i, float angle1, float angle2)
         // Elevators
         else if (towerlinetb == TB_ELEV_BOTTOM)
         {
-            int ex = (int)(coscenter * TOWER_LIFTC_RADIUS + 0.5);  // Lift center position
+            int ex = (int)(sincenter * TOWER_LIFTC_RADIUS + 0.5);  // Lift center position
 
             DrawElevatorBlock(ex, y);
         }
@@ -532,9 +535,28 @@ void DrawTowerColumn(int i, float angle1, float angle2)
         // Sticks
         else if (towerlinetb == TB_STICK)
         {
-            int ex = (int)(coscenter * TOWER_STICKC_RADIUS + 0.5);  // Stick center position
+            int ex = (int)(sincenter * TOWER_STICKC_RADIUS + 0.5);  // Stick center position
 
             DrawStickBlock(ex, y);
+        }
+    }
+}
+
+void DrawRobots()
+{
+    for (int rob = 0; rob < MAX_OBJECTS; rob++)
+    {
+        if (Robot_GetKind(rob) == OBJ_KIND_NOTHING || Robot_GetKind(rob) == OBJ_KIND_CROSS)
+            continue;
+
+        float angle = fmod(Robot_GetAngle(rob) + ANGLE_360 - g_TowerAngle, ANGLE_360);
+        if (angle < ANGLE_90 + ANGLE_BLOCK || angle > ANGLE_270 - ANGLE_BLOCK)
+        {
+            float cosrob = sin(angle * PI / ANGLE_180);
+            int x = (int)(cosrob * TOWER_ROBOTC_RADIUS + 0.5);
+            int y = POSY_POGO_BASE - Robot_GetLevel(rob) + g_TowerLevel;
+            
+            DrawSprite(SPRITE_ROBOT, POSX_TOWER_CENTER + x - 10, y - 20);
         }
     }
 }
@@ -555,16 +577,16 @@ void DrawTower()
     // Draw tower body
     DrawTowerBricks();
 
+    DrawRobots();
+
     // Draw tower extras: steps, doors, elevators etc.
     float angle = 0.0f;
     for (int i = 0; i < 16; i++, angle += ANGLE_BLOCK)
     {
-        float angle1 = angle + g_TowerAngle;
-        if (angle1 >= ANGLE_360) angle1 -= ANGLE_360;
-        float angle2 = angle1 + ANGLE_BLOCK;
-        if (angle2 >= ANGLE_360) angle2 -= ANGLE_360;
+        float angle1 = fmod(angle + ANGLE_360 - g_TowerAngle, ANGLE_360);
+        float angle2 = fmod(angle1 + ANGLE_BLOCK, ANGLE_360);
 
-        if (angle2 < ANGLE_180 + ANGLE_BLOCK || angle1 > ANGLE_360 - ANGLE_BLOCK)
+        if (angle2 < ANGLE_90 + ANGLE_BLOCK || angle1 > ANGLE_270 - ANGLE_BLOCK)
         {
             DrawTowerColumn(i, angle1, angle2);
         }
@@ -623,11 +645,11 @@ void DrawSnowball()
 {
     if (g_SnowballDirection == 0) return;
 
-    float angle = fmod(g_SnowballAngle + g_TowerAngle, ANGLE_360);
-    if (angle < ANGLE_180 + ANGLE_BLOCK || angle > ANGLE_360 - ANGLE_BLOCK)
+    float angle = fmod(g_SnowballAngle + ANGLE_360 - g_TowerAngle, ANGLE_360);
+    if (angle < ANGLE_90 + ANGLE_BLOCK || angle > ANGLE_270 - ANGLE_BLOCK)
     {
-        float cossnb = cos(angle * PI / ANGLE_180);
-        int x = (int)(cossnb * TOWER_SNOWBALLC_RADIUS + 0.5);
+        float sinsnb = sin(angle * PI / ANGLE_180);
+        int x = (int)(sinsnb * TOWER_SNOWBALLC_RADIUS + 0.5);
         int y = POSY_POGO_BASE - g_SnowballLevel + g_TowerLevel;
         DrawSprite(SPRITE_SNOWBALL, POSX_TOWER_CENTER + x - 4, y - 4);
     }
@@ -682,8 +704,9 @@ void GameStart()
     g_SnowballDirection = 0;
 
     // Prepare tower
-    g_TowerAngle = 90.0f + ANGLE_HALFBLOCK;
+    g_TowerAngle = ANGLE_HALFBLOCK;
     g_TowerLevel = POSY_BRICK_HEIGHT * 2;
+    g_TowerTopLineY = 0;
 
     Level_SelectTower(0);
 
@@ -703,6 +726,9 @@ void GameStart()
     gl = (Uint16)g * 3 / 2;  if (gl > 255) gl = 255;
     bl = (Uint16)b * 3 / 2;  if (bl > 255) bl = 255;
     g_TowerColorLite = SDL_MapRGB(g_Screen->format, (Uint8)rl,(Uint8)gl,(Uint8)bl);
+
+    Robot_Initialize();
+    Elevator_Initialize();
 
     //TODO: Move to program initialize routine
     // Prepare stars
@@ -784,7 +810,7 @@ void GameCalculatePosition()
     // Find tower blocks under Pogo (g_BaseLine) and behind Pogo (curline)
     g_BaseLine = (g_TowerLevel / 8) - 1;
     int curline = g_BaseLine + 1;
-    float angle = fmod(g_TowerAngle - 90.0f + ANGLE_360, ANGLE_360);
+    float angle = g_TowerAngle;
     g_BaseLineIndex = (int)(angle / ANGLE_BLOCK);
     g_BaseLineTB = TB_EMPTY;
     if (g_BaseLine >= 0 && g_BaseLine < g_TowerHeight)
@@ -794,25 +820,27 @@ void GameCalculatePosition()
         g_CurLineTB = Level_GetTowerData(curline, g_BaseLineIndex);
 }
 
-// Process long-time logic
-// Returns: 1 - process futher logic and controls, 0 - don't process other logic
-int GameProcessLogicCont()
+void SnowballUpdate()
 {
-    // Move snowball
     if (g_SnowballDirection != 0)
     {
         float delta = 2.5f * 2;
-        g_SnowballAngle -= delta * g_SnowballDirection;
+        g_SnowballAngle += delta * g_SnowballDirection;
         if (g_SnowballAngle > ANGLE_360) g_SnowballAngle -= ANGLE_360;
         else if (g_SnowballAngle < 0.0f) g_SnowballAngle += ANGLE_360;
         g_SnowballAnglePassed += delta;
         if (fmod(g_SnowballAnglePassed + 0.01f, 2.5f * 2 * 4) < 0.02f)
             g_SnowballLevel++;
 
-        if (g_SnowballAnglePassed > 90.0f + ANGLE_HALFBLOCK)
+        if (g_SnowballAnglePassed > ANGLE_90 + ANGLE_HALFBLOCK)
             g_SnowballDirection = 0;
     }
+}
 
+// Process long-time logic
+// Returns: 1 - process futher logic and controls, 0 - don't process other logic
+int GameProcessLogicCont()
+{
     // Pogo moves thru door and tunnel
     if ((g_PogoState & POGO_MASK_STATE) == POGO_DOOR)
     {
@@ -856,6 +884,7 @@ int GameProcessLogicCont()
         else  // Jump finished, falling
         {
             g_PogoState = POGO_FALL | (g_PogoState & POGO_MASK_DIR);
+            g_FallingDirection = (g_PogoState & POGO_MASK_DIR) ? 1 : -1;
             g_PogoMovtPhase = 0;
             return 1;
         }
@@ -890,48 +919,61 @@ int GameProcessLogicCont()
 // Returns: 1 - process controls, 0 - don't process controls
 int GameProcessLogic()
 {
-    // Check if Pogo drown or falling
-    if (g_TowerLevel <= 0)
+    if (g_TowerLevel <= 0)  // Drown
     {
         g_MoveY = -1;
         g_PogoState = POGO_DROWN | (g_PogoState & POGO_MASK_DIR);
         g_PogoMovtPhase = 0;
         return 0;
     }
-    if (g_TowerLevel % 8 != 0 && Level_IsEmpty(g_CurLineTB))
+
+    if ((g_PogoState & POGO_MASK_STATE) == POGO_FALL)
     {
-        g_MoveY = -1;
-        g_MoveX = ((g_PogoState & POGO_MASK_DIR) == POGO_L) ? -1 : 1;
-        g_PogoState = POGO_FALL | (g_PogoState & POGO_MASK_DIR);
-        return 0;
+        if (g_TowerLevel % 8 == 0 && Level_IsPlatform(g_BaseLineTB))
+        {
+            g_PogoState = POGO_STAY | (g_PogoState & POGO_MASK_DIR);  // Restore state after landing
+        }
+        else
+        {
+            g_MoveX = g_FallingDirection;
+            g_MoveY = -1;
+            return 0;
+        }
     }
 
-    if (g_BaseLineTB == TB_STEP_VANISHER)
+    if ((g_PogoState & POGO_MASK_STATE) != POGO_FALL)
     {
-        Level_RemoveVanishStep(g_BaseLine, g_BaseLineIndex);
-        g_MoveY = -1;
-        g_PogoState = POGO_FALL | (g_PogoState & POGO_MASK_DIR);
-        return 0;
-    }
+        if (g_TowerLevel % 8 == 0 && g_BaseLineTB == TB_STEP_VANISHER)
+        {
+            Level_RemoveVanishStep(g_BaseLine, g_BaseLineIndex);
+        }
 
-    if (Level_IsPlatform(g_CurLineTB))  // Climb up
-    {
-        g_MoveY = 2;
-        g_PogoState = POGO_STAY | (g_PogoState & POGO_MASK_DIR);
-        return 0;
-    }
+        if (g_TowerLevel % 8 != 0 && Level_IsEmpty(g_CurLineTB))
+        {
+            g_FallingDirection = 0;
+            if ((g_PogoState & POGO_MASK_STATE) == POGO_WALK)
+                g_FallingDirection = (g_PogoState & POGO_MASK_DIR) ? 1 : -1;
+            g_PogoState = POGO_FALL | (g_PogoState & POGO_MASK_DIR);
+            g_MoveX = g_FallingDirection;
+            g_MoveY = -1;
+            return 0;
+        }
 
-    if (Level_IsEmpty(g_BaseLineTB))
-    {
-        g_MoveY = -1;
-        g_MoveX = ((g_PogoState & POGO_MASK_DIR) == POGO_L) ? -1 : 1;
-        g_PogoState = POGO_FALL | (g_PogoState & POGO_MASK_DIR);
-        return 0;
-    }
+        if (Level_IsPlatform(g_CurLineTB))  // Climb up
+        {
+            g_MoveY = 2;
+            g_PogoState = POGO_STAY | (g_PogoState & POGO_MASK_DIR);
+            return 0;
+        }
 
-    if ((g_PogoState & POGO_MASK_STATE) == POGO_FALL && Level_IsPlatform(g_BaseLineTB))
-    {
-        g_PogoState = POGO_STAY | (g_PogoState & POGO_MASK_DIR);  // Restore state after landing
+        if (Level_IsEmpty(g_BaseLineTB))
+        {
+            g_PogoState = POGO_FALL | (g_PogoState & POGO_MASK_DIR);
+            g_FallingDirection = 0;
+            g_MoveY = -1;
+            g_MoveX = ((g_PogoState & POGO_MASK_DIR) == POGO_L) ? -1 : 1;
+            return 0;
+        }
     }
 
     int sliding = Level_IsSliding(g_BaseLineTB);
@@ -1037,7 +1079,7 @@ void GameProcessControls()
     // Throw snowball
     if ((g_ControlState & CONTROL_FIRE) && g_SnowballDirection == 0)
     {
-        g_SnowballAngle = ANGLE_360 - g_TowerAngle + 90.0f;
+        g_SnowballAngle = g_TowerAngle;
         g_SnowballLevel = g_TowerLevel + 6;
         g_SnowballDirection = (g_PogoState & POGO_MASK_DIR) ? 1 : -1;
         g_SnowballAnglePassed = 0;
@@ -1055,6 +1097,11 @@ void GameProcess()
         GameStart();  // Restart level
         return;
     }
+
+    SnowballUpdate();
+    Robot_New(g_TowerTopLineY);
+    Robot_Update();
+    Elevator_Update();
 
     if (!GameProcessLogicCont())
         return;
@@ -1137,7 +1184,7 @@ void MenuProcessEvent(SDL_Event evt)
 int main(int argc, char * argv[])
 {
 #ifdef _WIN32
-    _putenv("SDL_VIDEO_WINDOW_POS=300,200");
+    SDL_putenv("SDL_VIDEO_WINDOW_POS=300,200");
 #endif
 
     // Init randomizer
@@ -1146,16 +1193,15 @@ int main(int argc, char * argv[])
     // Init SDL video
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
         return 255;  // Unable to initialize SDL
-    // Prepare screen surface
-    g_Screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, 0);
-    if (g_Screen == NULL)
-        return 254;  // Unable to set video mode
-
 #ifdef _WIN32
     SDL_WM_SetCaption("Tower Toppler SDL", "Tower Toppler SDL");
 #else
     SDL_ShowCursor(SDL_DISABLE);
 #endif
+    // Prepare screen surface
+    g_Screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, 0);
+    if (g_Screen == NULL)
+        return 254;  // Unable to set video mode
 
     // Various initializations
     {
@@ -1212,7 +1258,7 @@ int main(int argc, char * argv[])
             frames++;
 
             // Delay
-            const int FRAME_TICKS = 32;  // 31.25 frames per second
+            const int FRAME_TICKS = 30;  // 33.3 frames per second
             Uint32 ticksNew = SDL_GetTicks();
             Uint32 ticksElapsed = ticksNew - ticksLast;
             g_LastDelay = 0;
