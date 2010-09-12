@@ -59,7 +59,7 @@ void Robot_New(int toplevel)
         int okRobotFound = false;
         for (;;)
         {
-            okRobotFound = Level_IsRobot(Level_GetTowerData(g_Robot_ReadyLine, g_Robot_ReadyIndex));
+            okRobotFound = Level_IsRobot(Level_GetTowerBlock(g_Robot_ReadyLine, g_Robot_ReadyIndex));
             if (okRobotFound) break;
             g_Robot_ReadyIndex = (g_Robot_ReadyIndex + 1) % 16;
             if (g_Robot_ReadyIndex == 0)

@@ -18,17 +18,20 @@ const float ANGLE_360           = 360.0f;
 const float ANGLE_180           = 180.0f;
 const float ANGLE_270           = 270.0f;
 const float ANGLE_90            = 90.0f;
-const float ANGLE_BLOCK         = 22.5f;  // 16 blocks
+const float ANGLE_BLOCK         = 22.5f;    // 16 blocks
 const float ANGLE_HALFBLOCK     = 11.25f;
+const float ANGLE_ROTATION      = 2.5f;     // Rotation quant: tower moves for this quant every frame
+
+#define TOWER_ANGLECOUNT        144         // Total rotation quants for one round: 360.0 / 2.5 = 144
 
 #define TOWER_RADIUS            75
 #define TOWER_STEPS_RADIUS      (TOWER_RADIUS + 30)
-#define TOWER_LIFTC_RADIUS      (TOWER_RADIUS + 15)     // Distance between tower center and lift center
-#define TOWER_LIFT_RADIUS       14                      // Radius of lift platform
-#define TOWER_STICKC_RADIUS     (TOWER_RADIUS + 15)
+#define TOWER_ELEVC_RADIUS      (TOWER_RADIUS + 15)     // Distance between tower center and elevator center
+#define TOWER_ELEV_RADIUS       14                      // Radius of elevator platform
+#define TOWER_STICKC_RADIUS     (TOWER_RADIUS + 15)     // From tower center to stick center
 #define TOWER_STICK_RADIUS      6
-#define TOWER_SNOWBALLC_RADIUS  (TOWER_RADIUS + 15)
-#define TOWER_ROBOTC_RADIUS     (TOWER_RADIUS + 15)
+#define TOWER_SNOWBALLC_RADIUS  (TOWER_RADIUS + 15)     // From tower center to snowball center
+#define TOWER_ROBOTC_RADIUS     (TOWER_RADIUS + 15)     // From tower center to robot center
 #define POSY_BRICK_HEIGHT       8
 #define POSX_VIEWPORT_MARGIN    6
 #define POSY_VIEWPORT_TOP       44
@@ -46,37 +49,16 @@ const float ANGLE_HALFBLOCK     = 11.25f;
 #define STARS_BACK_WIDTH        (360 * STARS_MULTIPLIER + SCREEN_WIDTH)
 #define STARCOUNT               50
 
-//TODO: Split state and direction
 enum PogoStateEnum
 {
-    // Masks and masked values
-    POGO_MASK_DIR   = 0x1000,  // Direction mask
-    POGO_L          = 0x0000,
-    POGO_R          = 0x1000,
-    POGO_MASK_STATE = 0x00ff,  // State mask
     // States
     POGO_STAY       = 0x0001,
     POGO_WALK       = 0x0002,
     POGO_DOOR       = 0x0004,  // Door and 180 degree rotation
     POGO_JUMP       = 0x0008,
-    POGO_LIFT       = 0x0010,  // Lifting on elevator
+    POGO_ELEV       = 0x0010,  // Moving up or down on elevator
     POGO_FALL       = 0x0020,
     POGO_DROWN      = 0x0040,
-    // Combined values
-    POGO_L_STAY     = POGO_STAY | POGO_L,
-    POGO_L_WALK     = POGO_WALK | POGO_L,
-    POGO_L_DOOR     = POGO_DOOR | POGO_L,
-    POGO_L_JUMP     = POGO_JUMP | POGO_L,
-    POGO_L_LIFT     = POGO_LIFT | POGO_L,
-    POGO_L_FALL     = POGO_FALL | POGO_L,
-    POGO_L_DROWN    = POGO_DROWN | POGO_L,
-    POGO_R_STAY     = POGO_STAY | POGO_R,
-    POGO_R_WALK     = POGO_WALK | POGO_R,
-    POGO_R_DOOR     = POGO_DOOR | POGO_R,
-    POGO_R_JUMP     = POGO_JUMP | POGO_R,
-    POGO_R_LIFT     = POGO_LIFT | POGO_R,
-    POGO_R_FALL     = POGO_FALL | POGO_R,
-    POGO_R_DROWN    = POGO_DROWN | POGO_R,
 };
 
 
@@ -84,7 +66,6 @@ enum PogoStateEnum
 // Levels
 
 #define TOWERWID 16
-
 
 typedef enum TowerBlockEnum {
     TB_EMPTY,
@@ -119,7 +100,6 @@ typedef enum TowerBlockEnum {
     NUM_TBLOCKS
 };
 
-
 // Get total count of towers
 int Level_GetTowerCount();
 
@@ -132,8 +112,8 @@ int Level_GetTowerSize();
 // Color of the selected tower
 Uint32 Level_GetTowerColor();
 
-// Get data of the selected tower
-Uint8 Level_GetTowerData(int row, int col);
+// Get data of the selected tower; row = 0..GetTowerHeight()-1, col = 0..TOWERWID-1
+Uint8 Level_GetTowerBlock(int row, int col);
 
 // Data qualification functions
 int Level_IsPlatform(Uint8 data);
@@ -156,9 +136,25 @@ inline int Level_IsDownStation(Uint8 data)
 {
     return (data == TB_ELEV_TOP || data == TB_ELEV_MIDDLE);
 }
+inline int Level_IsBottomStation(Uint8 data)
+{
+    return (data == TB_ELEV_BOTTOM);
+}
+inline int Level_IsStick(Uint8 data) {
+    return ((data == TB_STICK) || (data == TB_STICK_TOP) || (data == TB_STICK_MIDDLE) || (data == TB_STICK_BOTTOM) ||
+            (data == TB_STICK_DOOR) || (data == TB_STICK_DOOR_TARGET));
+}
+
+void Level_Platform2Stick(int row, int col);
+void Level_Stick2Platform(int row, int col);
+void Level_Stick2Empty(int row, int col);
+void Level_Empty2Stick(int row, int col);
+void Level_Platform2Empty(int row, int col);
 
 void Level_RemoveVanishStep(int row, int col);
 void Level_ClearBlock(int row, int col);
+Uint8 Level_PutPlatform(int row, int col);
+void Level_Restore(int row, int col, Uint8 data);
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -195,6 +191,7 @@ int Robot_GetLevel(int rob);
 #define MAX_ELE 10
 
 void Elevator_Initialize();
+void Elevator_Select(int row, int col);
 void Elevator_Activate(int direction);
 void Elevator_Move();
 int Elevator_IsAtStop();

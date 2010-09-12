@@ -88,7 +88,8 @@ int Level_GetTowerCount()
     return sizeof(g_Mission1Towers) / sizeof(TowerStruct);
 }
 
-Uint8 conv_char2towercode(char ch) {
+Uint8 conv_char2towercode(char ch)
+{
   if (ch)
       for (int x = 0; x < NUM_TBLOCKS; x++)
           // we can do that because we use only chars below 128
@@ -124,7 +125,7 @@ int Level_GetTowerSize()
     return g_Level_TowerHeight;
 }
 
-Uint8 Level_GetTowerData(int row, int col)
+Uint8 Level_GetTowerBlock(int row, int col)
 {
     if (g_Level_TowerNumber < 0) return 0;
     if (col < 0 || col >= TOWERWID) return 0;
@@ -140,7 +141,9 @@ Uint32 Level_GetTowerColor()
     if (pSurface == NULL) return 0;
 
     return SDL_MapRGB(pSurface->format,
-        g_Mission1Towers[g_Level_TowerNumber].colorr, g_Mission1Towers[g_Level_TowerNumber].colorg, g_Mission1Towers[g_Level_TowerNumber].colorb);
+        g_Mission1Towers[g_Level_TowerNumber].colorr,
+        g_Mission1Towers[g_Level_TowerNumber].colorg,
+        g_Mission1Towers[g_Level_TowerNumber].colorb);
 }
 
 int Level_IsPlatform(Uint8 data)
@@ -160,6 +163,50 @@ int Level_IsRobot(Uint8 data)
     return ((TowerBlocks[data].tf & TBF_ROBOT) != 0);
 }
 
+void Level_Platform2Stick(int row, int col)
+{
+    if (g_Level_Tower[row][col] == TB_ELEV_TOP) g_Level_Tower[row][col] = TB_STICK_TOP;
+    else if (g_Level_Tower[row][col] == TB_ELEV_MIDDLE) g_Level_Tower[row][col] = TB_STICK_MIDDLE;
+    else if (g_Level_Tower[row][col] == TB_ELEV_BOTTOM) g_Level_Tower[row][col] = TB_STICK_BOTTOM;
+    else if (g_Level_Tower[row][col] == TB_STEP) g_Level_Tower[row][col] = TB_STICK;
+}
+void Level_Stick2Platform(int row, int col)
+{
+    if (g_Level_Tower[row][col] == TB_STICK_TOP) g_Level_Tower[row][col] = TB_ELEV_TOP;
+    else if (g_Level_Tower[row][col] == TB_STICK_MIDDLE) g_Level_Tower[row][col] = TB_ELEV_MIDDLE;
+    else if (g_Level_Tower[row][col] == TB_STICK_BOTTOM) g_Level_Tower[row][col] = TB_ELEV_BOTTOM;
+    else if (g_Level_Tower[row][col] == TB_STICK_DOOR) g_Level_Tower[row][col] = TB_ELEV_DOOR;
+    else if (g_Level_Tower[row][col] == TB_STICK_DOOR_TARGET) g_Level_Tower[row][col] = TB_ELEV_DOOR_TARGET;
+    else if (g_Level_Tower[row][col] == TB_STICK) g_Level_Tower[row][col] = TB_STEP;
+}
+void Level_Stick2Empty(int row, int col)
+{
+    if (g_Level_Tower[row][col] == TB_STICK_TOP) g_Level_Tower[row][col] = TB_STATION_TOP;
+    else if (g_Level_Tower[row][col] == TB_STICK_MIDDLE) g_Level_Tower[row][col] = TB_STATION_MIDDLE;
+    else if (g_Level_Tower[row][col] == TB_STICK_BOTTOM) g_Level_Tower[row][col] = TB_STATION_BOTTOM;
+    else if (g_Level_Tower[row][col] == TB_STICK_DOOR_TARGET) g_Level_Tower[row][col] = TB_DOOR_TARGET;
+    else if (g_Level_Tower[row][col] == TB_STICK_DOOR) g_Level_Tower[row][col] = TB_DOOR;
+    else if (g_Level_Tower[row][col] == TB_STICK) g_Level_Tower[row][col] = TB_EMPTY;
+}
+void Level_Empty2Stick(int row, int col)
+{
+    if (g_Level_Tower[row][col] == TB_STATION_TOP) g_Level_Tower[row][col] = TB_STICK_TOP;
+    else if (g_Level_Tower[row][col] == TB_STATION_MIDDLE) g_Level_Tower[row][col] = TB_STICK_MIDDLE;
+    else if (g_Level_Tower[row][col] == TB_STATION_BOTTOM) g_Level_Tower[row][col] = TB_STICK_BOTTOM;
+    else if (g_Level_Tower[row][col] == TB_DOOR) g_Level_Tower[row][col] = TB_STICK_DOOR;
+    else if (g_Level_Tower[row][col] == TB_DOOR_TARGET) g_Level_Tower[row][col] = TB_STICK_DOOR_TARGET;
+    else if (g_Level_Tower[row][col] == TB_EMPTY) g_Level_Tower[row][col] = TB_STICK;
+}
+void Level_Platform2Empty(int row, int col)
+{
+    if (g_Level_Tower[row][col] == TB_ELEV_TOP) g_Level_Tower[row][col] = TB_STATION_TOP;
+    else if (g_Level_Tower[row][col] == TB_ELEV_MIDDLE) g_Level_Tower[row][col] = TB_STATION_MIDDLE;
+    else if (g_Level_Tower[row][col] == TB_ELEV_BOTTOM) g_Level_Tower[row][col] = TB_STATION_BOTTOM;
+    else if (g_Level_Tower[row][col] == TB_ELEV_DOOR_TARGET) g_Level_Tower[row][col] = TB_DOOR_TARGET;
+    else if (g_Level_Tower[row][col] == TB_ELEV_DOOR) g_Level_Tower[row][col] = TB_DOOR;
+    else if (g_Level_Tower[row][col] == TB_STEP) g_Level_Tower[row][col] = TB_EMPTY;
+}
+
 void Level_RemoveVanishStep(int row, int col)
 {
     if (g_Level_Tower[row][col] == TB_STEP_VANISHER)
@@ -170,4 +217,18 @@ void Level_RemoveVanishStep(int row, int col)
 void Level_ClearBlock(int row, int col)
 {
     g_Level_Tower[row][col] = TB_EMPTY;
+}
+
+Uint8 Level_PutPlatform(int row, int col)
+{
+    Uint8 erg = g_Level_Tower[row][col];
+
+    g_Level_Tower[row][col] = TB_ELEV_BOTTOM;
+
+    return erg;
+}
+
+void Level_Restore(int row, int col, Uint8 data)
+{
+    g_Level_Tower[row][col] = data;
 }
