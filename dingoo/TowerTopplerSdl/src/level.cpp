@@ -38,7 +38,7 @@ static TowerBlocks[NUM_TBLOCKS] =
     { "robot 5",          '5', TBF_EMPTY|TBF_DEADLY|TBF_ROBOT },
     { "robot 6",          '6', TBF_EMPTY|TBF_DEADLY|TBF_ROBOT },
     { "robot 7",          '7', TBF_EMPTY|TBF_DEADLY|TBF_ROBOT },
-    { "stick",            '!', 0/*TBF_PLATFORM*/ },
+    { "stick",            '!', 0 },
     { "step",             '-', TBF_PLATFORM },
     { "vanisher step",    '.', TBF_PLATFORM },
     { "slider > step",    '>', TBF_PLATFORM },
@@ -46,9 +46,9 @@ static TowerBlocks[NUM_TBLOCKS] =
     { "box",              'b', TBF_NONE },
     { "door",             '#', TBF_EMPTY },
     { "target door",      'T', TBF_EMPTY },
-    { "stick top",         0,  TBF_STATION/*|TBF_PLATFORM*/ },
-    { "stick middle",      0,  TBF_STATION/*|TBF_PLATFORM*/ },
-    { "stick bottom",      0,  TBF_STATION/*|TBF_PLATFORM*/ },
+    { "stick top",         0,  TBF_STATION },
+    { "stick middle",      0,  TBF_STATION },
+    { "stick bottom",      0,  TBF_STATION },
     { "lift top",          0,  TBF_STATION|TBF_PLATFORM },
     { "lift middle",       0,  TBF_STATION|TBF_PLATFORM },
     { "lift bottom",      '^', TBF_STATION|TBF_PLATFORM },
@@ -72,7 +72,7 @@ struct TowerStruct
 
 static TowerStruct g_Mission1Towers[] = 
 {
-    { "Test Tower",         140,140,140,    500, 0, 20,     TestTower },  //DEBUG
+    { "Test Tower",         140,150,120,    500, 0, 20,     TestTower },  //DEBUG
     { "Tower of Eyes",      200,60,60,      500, 0, 48,     Mission1Tower1 },
     { "Realm of Robots",    120,120,205,    600, 1, 72,     Mission1Tower2 },
 };

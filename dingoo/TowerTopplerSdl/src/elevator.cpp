@@ -109,7 +109,7 @@ void Elevator_Deactivate()
             g_Elevators[ae].bg = Level_GetTowerBlock(g_Elevators[ae].row, g_Elevators[ae].col);
     }
 
-    g_Elevators[ae].time = 0x7d;  //TODO: Tune the value
+    g_Elevators[ae].time = TIMEOUT_ELEVATOR_RETURN;
 }
 
 void Elevator_Update()
