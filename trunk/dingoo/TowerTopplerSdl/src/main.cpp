@@ -126,7 +126,22 @@ enum SpriteEnum
     SPRITE_LIFE,
     SPRITE_FONT_TIMER,
     SPRITE_FONT_8X8,
-    SPRITE_ROBOT,
+    SPRITE_ROBOT_APPEAR1,
+    SPRITE_ROBOT_APPEAR2,
+    SPRITE_ROBOT_APPEAR3,
+    SPRITE_ROBOT_APPEAR4,
+    SPRITE_ROBOT_BALL1,
+    SPRITE_ROBOT_BALL2,
+    SPRITE_ROBOT_BALL3,
+    SPRITE_ROBOT_BALL4,
+    SPRITE_ROBOT_EYE1,
+    SPRITE_ROBOT_EYE2,
+    SPRITE_ROBOT_EYE3,
+    SPRITE_ROBOT_EYE4,
+    SPRITE_ROBOT_CROSS1,
+    SPRITE_ROBOT_CROSS2,
+    SPRITE_ROBOT_CROSS3,
+    SPRITE_ROBOT_CROSS4,
     SPRITECOUNT
 };
 
@@ -163,11 +178,26 @@ g_SpriteCoords[SPRITECOUNT] =   // List of sprites coords, in order of SpriteEnu
     { 176,  42,  24,  20 },  // SPRITE_POGO_DROWN1
     { 201,  42,  24,  20 },  // SPRITE_POGO_DROWN2
     { 226,  42,  24,  20 },  // SPRITE_POGO_DROWN3
-    {   1,  42,   8,   8 },  // SPRITE_SNOWBALL
-    {   1,  53,  11,   9 },  // SPRITE_LIFE
-    {   1,  88, 160,  23 },  // SPRITE_FONT_TIMER
-    {   1, 113, 128,  40 },  // SPRITE_FONT_8X8
-    { 163,  85,  20,  20 },  // SPRITE_ROBOT
+    { 130, 119,   8,   8 },  // SPRITE_SNOWBALL
+    { 130, 109,  11,   9 },  // SPRITE_LIFE
+    {   1,  85, 160,  23 },  // SPRITE_FONT_TIMER
+    {   1, 109, 128,  40 },  // SPRITE_FONT_8X8
+    { 226,  84,  20,  20 },  // SPRITE_ROBOT_APPEAR1
+    { 205,  84,  20,  20 },  // SPRITE_ROBOT_APPEAR1
+    { 184,  84,  20,  20 },  // SPRITE_ROBOT_APPEAR1
+    { 163,  84,  20,  20 },  // SPRITE_ROBOT_APPEAR1
+    { 163, 105,  20,  20 },  // SPRITE_ROBOT_BALL1
+    { 184, 105,  20,  20 },  // SPRITE_ROBOT_BALL2
+    { 205, 105,  20,  20 },  // SPRITE_ROBOT_BALL3
+    { 226, 105,  20,  20 },  // SPRITE_ROBOT_BALL4
+    { 163, 126,  20,  20 },  // SPRITE_ROBOT_EYE1
+    { 184, 126,  20,  20 },  // SPRITE_ROBOT_EYE2
+    { 205, 126,  20,  20 },  // SPRITE_ROBOT_EYE3
+    { 226, 126,  20,  20 },  // SPRITE_ROBOT_EYE4
+    { 163, 147,  20,  20 },  // SPRITE_ROBOT_CROSS1
+    { 184, 147,  20,  20 },  // SPRITE_ROBOT_CROSS2
+    { 205, 147,  20,  20 },  // SPRITE_ROBOT_CROSS3
+    { 226, 147,  20,  20 },  // SPRITE_ROBOT_CROSS4
 };
 
 
@@ -548,7 +578,8 @@ void DrawRobots()
 {
     for (int rob = 0; rob < MAX_OBJECTS; rob++)
     {
-        if (Robot_GetKind(rob) == OBJ_KIND_NOTHING || Robot_GetKind(rob) == OBJ_KIND_CROSS)
+        RobotKindEnum kind = Robot_GetKind(rob);
+        if (kind == OBJ_KIND_NOTHING || kind == OBJ_KIND_CROSS)
             continue;
 
         float angle = fmod(Robot_GetAngle(rob) + ANGLE_360 - g_TowerAngle, ANGLE_360);
@@ -558,8 +589,51 @@ void DrawRobots()
             int x = (int)(cosrob * TOWER_ROBOTC_RADIUS + 0.5);
             int y = POSY_POGO_BASE - Robot_GetLevel(rob) + g_TowerLevel;
             
-            DrawSprite(SPRITE_ROBOT, POSX_TOWER_CENTER + x - 10, y - 20);
+            int time = Robot_GetTime(rob);
+            int sprite = SPRITE_ROBOT_BALL1;
+            if (kind == OBJ_KIND_APPEAR)
+                sprite = SPRITE_ROBOT_APPEAR1 + time / 3;
+            else if (kind == OBJ_KIND_DISAPPEAR)
+                sprite = SPRITE_ROBOT_APPEAR1 + (12 - time) / 3;
+            else if (kind == OBJ_KIND_ROBOT_VERT)
+            {
+                // Most of time the eye is opened, and blinks time to time
+                time = (time % (21*5)) / 5 - 10;  // -10..10
+                if (time > 0)
+                {
+                    if (time < 8) time = 0; else time -= 7;  // 0..3
+                }
+                else
+                {
+                    if (time > -8) time = 0; else time += 7;  // -3..0
+                }
+                if (time < 0) time = -time;  // 0..3
+                sprite = SPRITE_ROBOT_EYE1 + time;
+            }
+            else
+                sprite = SPRITE_ROBOT_BALL1 + (time % 20) / 5;
+            //TODO: Draw other kinds
+
+            DrawSprite(sprite, POSX_TOWER_CENTER + x - 10, y - 20);
         }
+    }
+}
+
+void DrawRobotCross()
+{
+    for (int rob = 0; rob < MAX_OBJECTS; rob++)
+    {
+        if (Robot_GetKind(rob) != OBJ_KIND_CROSS) continue;
+
+        int time = Robot_GetTime(rob);  if (time < 0) time = -time;
+        int sprite = SPRITE_ROBOT_CROSS1;
+        sprite += (Robot_GetTime(rob) > 0) ? (time % 12) / 3 : 3 - (time % 12) / 3;
+        int x = ((int)Robot_GetAngle(rob));
+        int y = POSY_POGO_BASE - Robot_GetLevel(rob) + g_TowerLevel;
+
+        DrawSprite(sprite, POSX_TOWER_CENTER + x - 10, y - 20);
+
+        break;
     }
 }
 
@@ -680,6 +754,7 @@ void DrawGameScreen()
 
         DrawSnowball();
         DrawPogo();
+        DrawRobotCross();
 
         DrawWater();
     }
@@ -1145,7 +1220,7 @@ void GameProcess()
     }
 
     SnowballUpdate();
-    Robot_New(g_TowerTopLineY);
+    Robot_New(g_TowerLevel);
     Robot_Update();
     Elevator_Update();
 
@@ -1163,6 +1238,7 @@ void GameProcess()
 /////////////////////////////////////////////////////////////////////////////
 // Menu
 
+// Switch to menu mode and draw menu screen
 void MenuStart()
 {
     char buffer[16];

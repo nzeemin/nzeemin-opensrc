@@ -162,6 +162,8 @@ void Level_Restore(int row, int col, Uint8 data);
 
 #define MAX_OBJECTS 4
 
+#define TIMEOUT_ROBOT_CROSS         125
+
 // Values for kinds of robots
 typedef enum RobotKindEnum
 {
@@ -180,15 +182,19 @@ typedef enum RobotKindEnum
 void Robot_Initialize();
 void Robot_New(int toplevel);
 void Robot_Update();
+
 RobotKindEnum Robot_GetKind(int rob);
 float Robot_GetAngle(int rob);
 int Robot_GetLevel(int rob);
+int Robot_GetTime(int rob);
 
 
 /////////////////////////////////////////////////////////////////////////////
 // Elevators
 
 #define MAX_ELE 10
+
+#define TIMEOUT_ELEVATOR_RETURN     125
 
 void Elevator_Initialize();
 void Elevator_Select(int row, int col);
