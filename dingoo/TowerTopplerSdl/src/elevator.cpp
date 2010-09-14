@@ -97,7 +97,7 @@ void Elevator_Deactivate()
     int ae = g_Elevator_Selected;
     g_Elevator_Selected = -1;
 
-    if (Level_IsStation(Level_GetTowerBlock(g_Elevators[ae].row, g_Elevators[ae].col)))
+    if (!Level_IsStation(Level_GetTowerBlock(g_Elevators[ae].row, g_Elevators[ae].col)))
     {
         g_Elevators[ae].bg = Level_PutPlatform(g_Elevators[ae].row, g_Elevators[ae].col);
     }

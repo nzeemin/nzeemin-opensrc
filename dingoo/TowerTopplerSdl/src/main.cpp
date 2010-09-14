@@ -35,6 +35,15 @@ enum GameMode
     GAMEMODE_MENU = 0,
     GAMEMODE_PLAY = 1,
 } g_GameMode = GAMEMODE_MENU;
+
+enum GameResultEnum
+{
+    GAME_NONE,
+    GAME_FINISHED,      // The tower has been finished successfully
+    GAME_DIED,          // The toppler died
+    GAME_ABORTED,       // The game was aborted
+} g_GameResult = GAME_NONE;
+
 int g_okQuit = 0;
 //int g_Score;
 
@@ -46,6 +55,7 @@ Uint32  g_TowerColorDark;
 Uint32  g_TowerColorLite;
 float   g_LastTowerAngle = -1.0f;  // Tower rotation angle, in degree (0.0f .. 359.5f), for which g_TowerBricks is prepared
 
+int     g_GlobalTime;           // Global timer: increments every frame
 int     g_MoveX = 0;            // Tower move in the current frame: -1, 0, 1
 int     g_MoveY = 0;            // Tower move in the current frame: -2, 0, 2
 int     g_ControlState;         // See ControlStateEnum
@@ -333,27 +343,28 @@ void DrawGameIndicators()
 {
     char buffer[16];
 
-    //// Draw score
-    //DrawTextBase(POSX_VIEWPORT_MARGIN, 8, "SCORE");
-    //sprintf(buffer, "%08d", 0);
-    //DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);
-    sprintf(buffer, "ANGLE %4d", (int)(g_TowerAngle * 10));  //DEBUG
-    DrawTextBase(POSX_VIEWPORT_MARGIN, 8, buffer);  //DEBUG
-    sprintf(buffer, "LEVEL %4d", (int)g_TowerLevel);  //DEBUG
-    DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);  //DEBUG
+    // Draw score
+    DrawTextBase(POSX_VIEWPORT_MARGIN, 8, "SCORE");
+    sprintf(buffer, "%08d", 0);
+    DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);
 
-    sprintf(buffer, "DELAY %4d", g_LastDelay);  //DEBUG
-    DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 8*10, 8, buffer);  //DEBUG
-    sprintf(buffer, "FPS   %4d", g_LastFps);  //DEBUG
-    DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 8*10, 18, buffer);  //DEBUG
+    sprintf(buffer, "A%4d", (int)(g_TowerAngle * 10));  //DEBUG
+    DrawTextBase(88, 8, buffer);  //DEBUG
+    sprintf(buffer, "L%4d", (int)g_TowerLevel);  //DEBUG
+    DrawTextBase(88, 18, buffer);  //DEBUG
 
-    //TODO: Draw lives left
-    //DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 8*5, 8, "LIVES");
-    //DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*1, 12);
-    //DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*2, 12);
-    //DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*3, 12);
+    sprintf(buffer, "DEL %2d", g_LastDelay);  //DEBUG
+    DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 11*10, 8, buffer);  //DEBUG
+    sprintf(buffer, "FPS %2d", g_LastFps);  //DEBUG
+    DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 11*10, 18, buffer);  //DEBUG
 
-    //TODO: Draw time
+    // Draw lives left
+    DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 8*5, 8, "LIVES");
+    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12, 18);
+    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*2, 18);
+    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*3, 18);
+
+    // Draw time
     DrawText(SPRITE_FONT_TIMER, SCREEN_WIDTH / 2 - 16*4/2, 8,  16,23, "1000");
 }
 
@@ -363,7 +374,7 @@ void DrawBackground()
 
     // Draw background stars
     int starsY = g_TowerLevel % STARS_BACK_HEIGHT;
-    int starsX = (int)((ANGLE_360 - g_TowerAngle) * STARS_MULTIPLIER);
+    int starsX = (int)((TOWER_ANGLECOUNT - (int)(g_TowerAngle / ANGLE_ROTATION)) * STARS_MULTIPLIER);
     Uint32 colorStars = SDL_MapRGB(g_Screen->format, 255,255,255);
     for (int i = 0; i < STARCOUNT; i++)
     {
@@ -523,6 +534,22 @@ void DrawStepBlock(int x1, int x2, int sx1, int sx2, int y, int isprevplatform, 
         SDL_FillRect(g_Screen, &rc, g_TowerColor);
     }
 }
+void DrawFlashBox(int ex, int y)
+{
+    SDL_Rect rc;
+
+    Uint32 color = (g_GlobalTime % 21 < 3) ? g_TowerColor : (g_GlobalTime % 21 > 17) ? g_TowerColorDark : g_TowerColorLite;
+
+    rc.x = POSX_TOWER_CENTER + ex - TOWER_STICK_RADIUS;  rc.y = y;
+    rc.w = TOWER_STICK_RADIUS * 2;  rc.h = POSY_BRICK_HEIGHT - 1;
+    SDL_FillRect(g_Screen, &rc, color);
+    rc.x = POSX_TOWER_CENTER + ex + TOWER_STICK_RADIUS - 1;  rc.y = y;
+    rc.w = 1;  rc.h = POSY_BRICK_HEIGHT - 1;
+    SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
+    rc.x = POSX_TOWER_CENTER + ex - TOWER_STICK_RADIUS;  rc.y = y;
+    rc.w = 1;  rc.h = POSY_BRICK_HEIGHT - 1;
+    SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
+}
 
 // Draw tower extras (steps, doors, elevators etc.) for all line in one column
 void DrawTowerColumn(int i, float angle1, float angle2)
@@ -552,7 +579,7 @@ void DrawTowerColumn(int i, float angle1, float angle2)
             DrawDoorBlock(x1, x2, y);
         }
         // Elevators
-        else if (towerlinetb == TB_ELEV_BOTTOM)
+        else if (towerlinetb == TB_ELEV_BOTTOM || towerlinetb == TB_ELEV_TOP || towerlinetb == TB_ELEV_MIDDLE)
         {
             int ex = (int)(sincenter * TOWER_ELEVC_RADIUS + 0.5);  // Elevator center position
 
@@ -570,6 +597,12 @@ void DrawTowerColumn(int i, float angle1, float angle2)
             int ex = (int)(sincenter * TOWER_STICKC_RADIUS + 0.5);  // Stick center position
 
             DrawStickBlock(ex, y);
+        }
+        else if (towerlinetb == TB_BOX)
+        {
+            int ex = (int)(sincenter * TOWER_STICKC_RADIUS + 0.5);  // Stick center position
+
+            DrawFlashBox(ex, y);
         }
     }
 }
@@ -776,6 +809,8 @@ void DrawGameScreen()
 
 void GameStart()
 {
+    g_GlobalTime = 0;
+
     // Prepare Pogo
     g_PogoState = POGO_STAY;
     g_PogoDirection = 1;
@@ -820,6 +855,7 @@ void GameStart()
     ClearScreen();
 
     g_GameMode = GAMEMODE_PLAY;
+    g_GameResult = GAME_NONE;
 }
 
 void GameProcessEvent(SDL_Event evt)
@@ -830,9 +866,10 @@ void GameProcessEvent(SDL_Event evt)
         {
         case SDLK_PAUSE:   // POWER UP button on Dingoo
             g_okQuit = 1;
+            g_GameResult = GAME_ABORTED;
             break;
         case SDLK_ESCAPE:  // SELECT button on Dingoo
-            MenuStart();
+            g_GameResult = GAME_ABORTED;
             break;
         case SDLK_LCTRL:   // A button on Dingoo
         case SDLK_SPACE:
@@ -928,6 +965,11 @@ int GameProcessLogicCont()
             g_PogoMovtPhase++;
             return 0;
         }
+        if (g_CurLineTB == TB_DOOR_TARGET)
+        {
+            g_GameResult = GAME_FINISHED;
+            return 0;
+        }
         if (fabs(g_TowerAngle - g_Pogo180Angle) > 0.01f)  // Part 2: 180 degree rotation
         {
             g_MoveX = g_PogoDirection ? 3 : -3;
@@ -988,6 +1030,7 @@ int GameProcessLogicCont()
             if (Elevator_IsAtStop())  // Arrived to station, stop the elevator
             {
                 Elevator_Deactivate();
+                g_BaseLineTB = Level_GetTowerBlock(g_BaseLine, g_BaseLineIndex);  // Update tower block after Elevator_Deactivate() call
                 g_PogoState = POGO_STAY;
                 g_ElevDirection = 0;
                 return 1;
@@ -1150,6 +1193,7 @@ void GameProcessControls()
         g_ElevDirection = 1;
         g_PogoMovtPhase = 1;
         Elevator_Activate(1);
+        g_MoveY = g_ElevDirection;
         return;
     }
     // Elevator down
@@ -1160,6 +1204,7 @@ void GameProcessControls()
         g_ElevDirection = -1;
         g_PogoMovtPhase = 1;
         Elevator_Activate(-1);
+        g_MoveY = g_ElevDirection;
         return;
     }
 
@@ -1214,8 +1259,7 @@ void GameProcess()
     // Check if Pogo died in the water
     if (g_TowerLevel < -POSY_POGO_HEIGHT * 2)
     {
-        //TODO: Move to main() function level
-        GameStart();  // Restart level
+        g_GameResult = GAME_DIED;
         return;
     }
 
@@ -1233,6 +1277,8 @@ void GameProcess()
     }
 
     GameMoveTower();
+
+    g_GlobalTime++;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1383,6 +1429,13 @@ int main(int argc, char * argv[])
                 frames = 0;
                 ticksLastFps += 1000;
             }
+
+            if (g_GameResult == GAME_ABORTED)
+                MenuStart();
+            else if (g_GameResult == GAME_FINISHED)
+                MenuStart();
+            else if (g_GameResult == GAME_DIED)
+                GameStart();
         }
     }
 
