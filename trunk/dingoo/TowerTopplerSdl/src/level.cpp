@@ -72,7 +72,7 @@ struct TowerStruct
 
 static TowerStruct g_Mission1Towers[] = 
 {
-    { "Test Tower",         140,150,120,    500, 0, 20,     TestTower },  //DEBUG
+    { "Test Tower",         140,150,120,    500, 0, 19,     TestTower },  //DEBUG
     { "Tower of Eyes",      200,60,60,      500, 0, 48,     Mission1Tower1 },
     { "Realm of Robots",    120,120,205,    600, 1, 72,     Mission1Tower2 },
 };

@@ -55,31 +55,31 @@ void Robot_PrepareNewRobot(int t)
 
     switch (robotTB)
     {
-    case TB_ROBOT1:
+    case TB_ROBOT1:  // freeze ball
         g_Robot_Objects[t].subkind = 1;
         g_Robot_Objects[t].futurekind = OBJ_KIND_FREEZEBALL;
         break;
-    case TB_ROBOT2:
+    case TB_ROBOT2:  // jumping ball moving from the start
         g_Robot_Objects[t].subkind = 1;
         g_Robot_Objects[t].futurekind = OBJ_KIND_JUMPBALL;
         break;
-    case TB_ROBOT3:
+    case TB_ROBOT3:  // jumping ball standing and then moving to you
         g_Robot_Objects[t].subkind = 0;
         g_Robot_Objects[t].futurekind = OBJ_KIND_JUMPBALL;
         break;
-    case TB_ROBOT4:
+    case TB_ROBOT4:  // robot, up down
         g_Robot_Objects[t].subkind = 1;
         g_Robot_Objects[t].futurekind = OBJ_KIND_ROBOT_VERT;
         break;
-    case TB_ROBOT5:
+    case TB_ROBOT5:  // robot, up down fast
         g_Robot_Objects[t].subkind = 2;
         g_Robot_Objects[t].futurekind = OBJ_KIND_ROBOT_VERT;
         break;
-    case TB_ROBOT6:
+    case TB_ROBOT6:  // robot left right
         g_Robot_Objects[t].subkind = 1;
         g_Robot_Objects[t].futurekind = OBJ_KIND_ROBOT_HORIZ;
         break;
-    case TB_ROBOT7:
+    case TB_ROBOT7:  // robot left right fast
         g_Robot_Objects[t].subkind = 2;
         g_Robot_Objects[t].futurekind = OBJ_KIND_ROBOT_HORIZ;
         break;
@@ -135,6 +135,15 @@ void Robot_New(int toplevel)
             Level_ClearBlock(g_Robot_ReadyLine, g_Robot_ReadyIndex);
         }
     }
+}
+
+void Robot_MoveHorizontal(int t)
+{
+    g_Robot_Objects[t].angle += ANGLE_ROTATION * g_Robot_Objects[t].subkind;
+    if (g_Robot_Objects[t].angle < 0.0f) g_Robot_Objects[t].angle += ANGLE_360;
+    else if (g_Robot_Objects[t].angle >= ANGLE_360) g_Robot_Objects[t].angle -= ANGLE_360;
+
+    //TODO
 }
 
 void Robot_UpdateCross(int t)

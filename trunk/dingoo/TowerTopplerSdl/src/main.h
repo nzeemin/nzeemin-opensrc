@@ -46,7 +46,7 @@ const float ANGLE_ROTATION      = 2.5f;     // Rotation quant: tower moves for t
 
 #define STARS_MULTIPLIER        3
 #define STARS_BACK_HEIGHT       (POSY_VIEWPORT_HEIGHT * 2)
-#define STARS_BACK_WIDTH        (360 * STARS_MULTIPLIER + SCREEN_WIDTH)
+#define STARS_BACK_WIDTH        (TOWER_ANGLECOUNT * STARS_MULTIPLIER)
 #define STARCOUNT               50
 
 enum PogoStateEnum
