@@ -7,8 +7,8 @@ for Dingoo A320 native OS
 
 #define _CRT_SECURE_NO_WARNINGS  // For VC warning C4996: 'sprintf': This function or variable may be unsafe.
 
-#include <stdlib.h>
-#include <stdio.h>
+//#include <stdlib.h>
+//#include <stdio.h>
 #include <math.h>
 
 #include <SDL.h>
@@ -44,7 +44,7 @@ enum GameResultEnum
     GAME_ABORTED,       // The game was aborted
 } g_GameResult = GAME_NONE;
 
-int g_okQuit = 0;
+int g_okQuit = FALSE;
 //int g_Score;
 
 int     g_TowerHeight = 32;     // Tower height in brick lines
@@ -60,9 +60,15 @@ int     g_MoveX = 0;            // Tower move in the current frame: -1, 0, 1
 int     g_MoveY = 0;            // Tower move in the current frame: -2, 0, 2
 int     g_ControlState;         // See ControlStateEnum
 int     g_PogoState;            // See PogoStateEnum
+int     g_PogoSubstate;
 int     g_PogoDirection;        // Pogo direction: 0 - left, 1 - right
 int     g_PogoMovtPhase;        // Pogo movement phase
 int     g_FallingDirection;     // Pogo falling direction: -1, 0, 1
+int     g_FallingMinimum;
+int     g_FallingHowMuch;
+int     g_JumpDirection;
+int     g_JumpHow;
+int     g_JumpHowLong;
 float   g_Pogo180Angle;         // Target angle for 180 degree rotation
 int     g_ElevDirection;        // Elevator movement direction: -1 or 1
 float   g_SnowballAnglePassed;
@@ -98,6 +104,10 @@ enum ControlStateEnum
     CONTROL_DOWN    = 0x0008,
     CONTROL_FIRE    = 0x0010,
 };
+
+int Main_GetTowerLevel() { return g_TowerLevel; }
+float Main_GetTowerAngle() { return g_TowerAngle; }
+int Main_IsPogoWalking() { return g_PogoState == POGO_WALK; }
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -344,14 +354,16 @@ void DrawGameIndicators()
     char buffer[16];
 
     // Draw score
-    DrawTextBase(POSX_VIEWPORT_MARGIN, 8, "SCORE");
-    sprintf(buffer, "%08d", 0);
-    DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);
+    //DrawTextBase(POSX_VIEWPORT_MARGIN, 8, "SCORE");
+    //sprintf(buffer, "%08d", 0);
+    //DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);
 
+    sprintf(buffer, "STATE %2d", g_PogoState);  //DEBUG
+    DrawTextBase(POSX_VIEWPORT_MARGIN, 8, buffer);  //DEBUG
     sprintf(buffer, "A%4d", (int)(g_TowerAngle * 10));  //DEBUG
-    DrawTextBase(88, 8, buffer);  //DEBUG
+    DrawTextBase(86, 8, buffer);  //DEBUG
     sprintf(buffer, "L%4d", (int)g_TowerLevel);  //DEBUG
-    DrawTextBase(88, 18, buffer);  //DEBUG
+    DrawTextBase(86, 18, buffer);  //DEBUG
 
     sprintf(buffer, "DEL %2d", g_LastDelay);  //DEBUG
     DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 11*10, 8, buffer);  //DEBUG
@@ -686,8 +698,6 @@ void DrawTower()
     // Draw tower body
     DrawTowerBricks();
 
-    DrawRobots();
-
     // Draw tower extras: steps, doors, elevators etc.
     float angle = 0.0f;
     for (int i = 0; i < 16; i++, angle += ANGLE_BLOCK)
@@ -700,6 +710,8 @@ void DrawTower()
             DrawTowerColumn(i, angle1, angle2);
         }
     }
+
+    DrawRobots();
 }
 
 void DrawPogo()
@@ -730,12 +742,12 @@ void DrawPogo()
         sprite = g_PogoDirection ? SPRITE_POGO_R_WALK5 : SPRITE_POGO_L_WALK5;
         break;
     case POGO_DROWN:
-        if (g_PogoMovtPhase < 12)
+        if (g_PogoMovtPhase < 3)
             sprite = g_PogoDirection ? SPRITE_POGO_R_WALK5 : SPRITE_POGO_L_WALK5;
         else
         {
-            sprite = SPRITE_POGO_DROWN1 + (g_PogoMovtPhase / 6) % 3;
-            y = g_WaterY - POSY_POGO_HEIGHT;
+            sprite = SPRITE_POGO_DROWN1 + (g_PogoMovtPhase / 8) % 3;
+            y = g_WaterY - POSY_POGO_HEIGHT - 2;
         }
         break;
     default:
@@ -746,7 +758,7 @@ void DrawPogo()
 
     if (g_PogoState == POGO_ELEV && g_ElevDirection != 0)
     {
-        //TODO: Draw moving elevator platform under Pogo
+        // Draw moving elevator platform under Pogo
         DrawElevatorBlock(0, POSY_POGO_BASE + 1);
     }
 }
@@ -807,6 +819,15 @@ void DrawGameScreen()
 /////////////////////////////////////////////////////////////////////////////
 
 
+void Stars_Initialize()
+{
+    for (int i = 0; i < STARCOUNT; i++)
+    {
+        g_Stars[i].x = rand() % STARS_BACK_WIDTH;
+        g_Stars[i].y = rand() % STARS_BACK_HEIGHT;
+    }
+}
+
 void GameStart()
 {
     g_GlobalTime = 0;
@@ -822,7 +843,7 @@ void GameStart()
     g_TowerLevel = POSY_BRICK_HEIGHT * 2;
     g_TowerTopLineY = 0;
 
-    Level_SelectTower(0);
+    Level_SelectTower(FIRST_TOWER);
 
     g_TowerHeight = Level_GetTowerSize();
     g_TowerColor = Level_GetTowerColor();
@@ -843,14 +864,7 @@ void GameStart()
 
     Robot_Initialize();
     Elevator_Initialize();
-
-    //TODO: Move to program initialize routine
-    // Prepare stars
-    for (int i = 0; i < STARCOUNT; i++)
-    {
-        g_Stars[i].x = rand() % STARS_BACK_WIDTH;
-        g_Stars[i].y = rand() % STARS_BACK_HEIGHT;
-    }
+    Stars_Initialize();
 
     ClearScreen();
 
@@ -865,14 +879,13 @@ void GameProcessEvent(SDL_Event evt)
         switch (evt.key.keysym.sym)
         {
         case SDLK_PAUSE:   // POWER UP button on Dingoo
-            g_okQuit = 1;
+            g_okQuit = TRUE;
             g_GameResult = GAME_ABORTED;
             break;
         case SDLK_ESCAPE:  // SELECT button on Dingoo
             g_GameResult = GAME_ABORTED;
             break;
         case SDLK_LCTRL:   // A button on Dingoo
-        case SDLK_SPACE:
             g_ControlState |= CONTROL_FIRE;
             break;
         case SDLK_LEFT:
@@ -884,6 +897,7 @@ void GameProcessEvent(SDL_Event evt)
             g_ControlState &= ~CONTROL_LEFT;
             break;
         case SDLK_UP:
+        case SDLK_SPACE:   // X button on Dingoo
             g_ControlState |= CONTROL_UP;
             g_ControlState &= ~CONTROL_DOWN;
             break;
@@ -900,7 +914,6 @@ void GameProcessEvent(SDL_Event evt)
         switch (evt.key.keysym.sym)
         {
         case SDLK_LCTRL:   // A button on Dingoo
-        case SDLK_SPACE:
             g_ControlState &= ~CONTROL_FIRE;
             break;
         case SDLK_LEFT:
@@ -910,6 +923,7 @@ void GameProcessEvent(SDL_Event evt)
             g_ControlState &= ~CONTROL_RIGHT;
             break;
         case SDLK_UP:
+        case SDLK_SPACE:   // X button on Dingoo
             g_ControlState &= ~CONTROL_UP;
             break;
         case SDLK_DOWN:
@@ -953,74 +967,245 @@ void SnowballUpdate()
     }
 }
 
-// Process long-time logic
-// Returns: 1 - process futher logic and controls, 0 - don't process other logic
-int GameProcessLogicCont()
+int GameMovePogo(int dx, int dy)
 {
-    // Pogo moves thru door and tunnel
-    if (g_PogoState == POGO_DOOR)
+    int test = Level_TestFigure(
+        g_TowerAngle + (g_MoveX + dx) * ANGLE_ROTATION,
+        g_TowerLevel + (g_MoveY + dy) * 2,
+        -3, 2, 0, 0, 9);
+    if (!test)
+        return FALSE;
+
+    g_MoveX += dx;
+    g_MoveY += dy;
+    return TRUE;
+}
+
+void GamePogoFalling(int nr)
+{
+    g_PogoState = POGO_FALL;
+    g_PogoSubstate = 0;
+
+    switch (nr)
     {
+    case 0:
+        g_FallingDirection = 0;
+        g_FallingMinimum = -1;
+        g_FallingHowMuch = 1;
+        break;
+    case 1:
+        g_FallingDirection = g_PogoDirection ? 1 : -1;
+        g_FallingMinimum = -1;
+        g_FallingHowMuch = 1;
+        break;
+    case 2:
+        g_FallingDirection = g_PogoDirection ? -1 : 1;
+        g_FallingMinimum = -1;
+        g_FallingHowMuch = 1;
+        break;
+    case 3:
+        g_FallingDirection = 0;
+        g_FallingMinimum = -1;
+        g_FallingHowMuch = 3;
+        break;
+    }
+}
+
+// Tests the underground of the animal at the given position returning
+//   0 if everything is all right
+//   1 if there is no underground below us (fall vertical)
+//   2 if there is no underground behind us (fall backwards)
+//   3 if there is no underground in front of us (fall forwards)
+int GameTestUnderground()
+{
+    static unsigned char unter[4 * 9] = {
+        0x11, 0x20, 0x02, 0x00,
+        0x11, 0x00, 0x32, 0x00,
+        0x11, 0x00, 0x32, 0x00,
+        0x11, 0x00, 0x11, 0x00,
+        0x11, 0x00, 0x11, 0x00,
+        0x11, 0x00, 0x11, 0x00,
+        0x11, 0x00, 0x11, 0x00,
+        0x11, 0x23, 0x00, 0x00,
+        0x11, 0x23, 0x00, 0x00
+    };
+
+    Uint8 data;
+    int c, erg;
+
+    int r = g_BaseLine;
+
+    c = ((int)(g_TowerAngle / ANGLE_ROTATION) + (TOWER_ANGLECOUNT - 7)) / 9 % 16;
+    data = Level_GetTowerBlock(r, c);
+    erg = (Level_IsEmpty(data) || Level_IsDoor(data)) ? 0 : 2;
+
+    c = (((int)(g_TowerAngle / ANGLE_ROTATION) + (TOWER_ANGLECOUNT - 7)) / 9 + 1) % 16;
+    data = Level_GetTowerBlock(r, c);
+    if (!Level_IsEmpty(data) && !Level_IsDoor(data)) erg++;
+
+    erg = unter[((int)(g_TowerAngle / ANGLE_ROTATION + 0.01) % 9) * 4 + erg];
+
+    return g_PogoDirection ? erg & 0xf : erg >> 4;
+}
+
+// Put Pogo to center of the current tower block
+void GameAlignTowerAngle()
+{
+     float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_HALFBLOCK;
+     g_TowerAngle -= comp;
+     if (g_TowerAngle > ANGLE_360) g_TowerAngle -= ANGLE_360;
+     if (g_TowerAngle < 0.0f) g_TowerAngle += ANGLE_360;
+}
+
+void GameProcessLogic()
+{
+    /* the height differences for jumping */
+    static long jump0[12] = { 3, 2, 2, 1, 1, 0, 0, -1, -1, -2, -2, -3 };
+    static long jump1[7] = { 2, 2, 1, 0, -1, -2, -2 };
+
+    int inh, b;
+
+    if (g_PogoState != POGO_DROWN && g_TowerLevel <= 0)  // Drown
+    {
+        g_PogoState = POGO_DROWN;
+        g_PogoMovtPhase = 0;
+    }
+
+    switch (g_PogoState)
+    {
+
+    case POGO_FALL:
+        if (g_PogoSubstate == 0)
+        {
+            g_FallingMinimum++;
+            if (!GameMovePogo(g_FallingDirection, 0))
+                g_FallingDirection = 0;
+            if (GameMovePogo(0, -g_FallingHowMuch))
+            {
+                g_FallingHowMuch++;
+                if (g_FallingHowMuch > 4) g_FallingHowMuch = 4;
+            }
+            else
+            {
+                do
+                {
+                    g_FallingHowMuch--;
+                }
+                while (g_FallingHowMuch != 0 && !GameMovePogo(0, -g_FallingHowMuch));
+
+                if (g_FallingHowMuch != 0)
+                {
+                    g_FallingHowMuch++;
+                    if (g_FallingHowMuch > 4) g_FallingHowMuch = 4;
+                }
+                else
+                {
+                    if (g_FallingDirection == 0 || g_FallingMinimum >= 2)
+                    {
+                        g_PogoSubstate++;
+                        g_PogoSubstate++;
+                        if (g_PogoSubstate == 3)
+                            g_PogoState = POGO_STAY;
+                    }
+                    else
+                    {
+                        g_FallingHowMuch++;
+                        if (g_FallingHowMuch > 4) g_FallingHowMuch = 4;
+                    }
+                }
+            }
+        }
+        else
+        {
+            g_PogoSubstate++;
+            if (g_PogoSubstate == 3)
+                g_PogoState = POGO_STAY;
+        }
+        break;
+
+    case POGO_JUMP:
+        GameMovePogo(g_JumpDirection, 0);
+
+        if (g_JumpHow == 0)
+            inh = jump0[g_PogoSubstate];
+        else
+            inh = jump1[g_PogoSubstate];
+
+        if (GameMovePogo(0, inh))
+        {
+            g_PogoSubstate++;
+            if (g_PogoSubstate >= g_JumpHowLong)
+            {
+                if (GameMovePogo(0, -1))
+                    GamePogoFalling(3);
+                else
+                {
+                    g_PogoState = POGO_FALL;
+                    g_PogoSubstate = 1;
+                }
+            }
+        }
+        else
+        {
+            b = inh;
+            do { if (inh < 0) inh++; else inh--; }
+            while ((inh != 0) && !GameMovePogo(0, inh));
+
+            if (b < 0)
+            {
+                g_PogoState = POGO_STAY;
+            }
+            else
+            {
+                g_PogoSubstate++;
+                if (g_PogoSubstate >= g_JumpHowLong)
+                {
+                    if (GameMovePogo(0, -1))
+                        GamePogoFalling(3);
+                    else
+                    {
+                        g_PogoState = POGO_FALL;
+                        g_PogoSubstate = 1;
+                    }
+                }
+            }
+        }
+        break;
+
+    case POGO_DOOR:  // Pogo moves thru door and tunnel
         if (g_PogoMovtPhase < 0)  // Part 1: Move in
         {
             g_PogoMovtPhase++;
-            return 0;
+            return;
         }
-        if (g_CurLineTB == TB_DOOR_TARGET)
+        if (g_CurLineTB == TB_DOOR_TARGET)  // Entered target door - game finished
         {
             g_GameResult = GAME_FINISHED;
-            return 0;
+            return;
         }
         if (fabs(g_TowerAngle - g_Pogo180Angle) > 0.01f)  // Part 2: 180 degree rotation
         {
             g_MoveX = g_PogoDirection ? 3 : -3;
-            return 0;
+            return;
         }
         if (g_PogoMovtPhase < 12)  // Part 3: Move out
         {
             g_PogoMovtPhase++;
-            return 0;
+            return;
         }
         // Rotation finished
         g_PogoMovtPhase = 0;
         g_PogoState = POGO_STAY;
-        return 1;
-    }
+        break;
 
-    // Pogo jumps
-    if (g_PogoState == POGO_JUMP)
-    {
-        if (g_PogoMovtPhase < 8)
-        {
-            g_PogoMovtPhase++;
-            g_MoveY = 1;
-            g_MoveX = g_PogoDirection ? 1 : -1;
-            return 0;
-        }
-        if (g_PogoMovtPhase < 10)  // Horz
-        {
-            g_PogoMovtPhase++;
-            g_MoveX = g_PogoDirection ? 1 : -1;
-            return 0;
-        }
-        else  // Jump finished, falling
-        {
-            g_PogoState = POGO_FALL;
-            g_FallingDirection = g_PogoDirection ? 1 : -1;
-            g_PogoMovtPhase = 0;
-            return 1;
-        }
-    }
-
-    // Elevator
-    if (g_PogoState == POGO_ELEV)
-    {
+    case POGO_ELEV:
         if (g_PogoMovtPhase != 0)  // Phase for center Pogo to the elevator platform
         {
             float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_HALFBLOCK;
             if (fabs(comp) > 0.01)
             {
                 g_MoveX = (comp > 0.0f) ? -1 : 1;
-                return 0;
+                return;
             }
             g_PogoMovtPhase = 0;
         }
@@ -1033,7 +1218,7 @@ int GameProcessLogicCont()
                 g_BaseLineTB = Level_GetTowerBlock(g_BaseLine, g_BaseLineIndex);  // Update tower block after Elevator_Deactivate() call
                 g_PogoState = POGO_STAY;
                 g_ElevDirection = 0;
-                return 1;
+                return;
             }
             else
             {
@@ -1042,110 +1227,64 @@ int GameProcessLogicCont()
         }
 
         g_MoveY = g_ElevDirection;
-        return 0;
-    }
+        break;
 
-    //TODO: turning
+    //TODO: case POGO_TURN:
 
-    // Drowns
-    if (g_PogoState == POGO_DROWN)
-    {
-        g_PogoMovtPhase++;
-        g_MoveY = -1;
-        return 0;
-    }
-
-    return 1;
-}
-
-// Process non-controlled logic like falling, collisions and so on
-// Returns: 1 - process controls, 0 - don't process controls
-int GameProcessLogic()
-{
-    if (g_TowerLevel <= 0)  // Drown
-    {
-        g_MoveY = -1;
-        g_PogoState = POGO_DROWN;
-        g_PogoMovtPhase = 0;
-        return 0;
-    }
-
-    if (g_PogoState == POGO_FALL)
-    {
-        if (g_TowerLevel % 8 == 0 && Level_IsPlatform(g_BaseLineTB))
+    case POGO_DROWN:
+        if (g_TowerLevel > -POSY_POGO_HEIGHT)
         {
-            g_PogoState = POGO_STAY;  // Restore state after landing
-        }
-        else
-        {
-            g_MoveX = g_FallingDirection;
             g_MoveY = -1;
-            return 0;
+            return;
         }
-    }
+        if (g_PogoMovtPhase > 24)  // Pogo died in the water
+        {
+            g_GameResult = GAME_DIED;
+            return;
+        }
+        g_PogoMovtPhase++;
+        break;
 
-    if (g_PogoState != POGO_FALL)
-    {
+    case POGO_STAY:
+    case POGO_WALK:
         if (g_TowerLevel % 8 == 0 && g_BaseLineTB == TB_STEP_VANISHER)
         {
             Level_RemoveVanishStep(g_BaseLine, g_BaseLineIndex);
         }
 
-        if (g_TowerLevel % 8 != 0 && Level_IsEmpty(g_CurLineTB))
+        int test = GameTestUnderground();
+        if (test == 1)
+            GamePogoFalling(0);
+        else if (test == 2)
+            GamePogoFalling(1);
+        else if (test == 3)
+            GamePogoFalling(2);
+        else
         {
-            g_FallingDirection = 0;
-            if (g_PogoState == POGO_WALK)
-                g_FallingDirection = g_PogoState ? 1 : -1;
-            g_PogoState = POGO_FALL;
-            g_MoveX = g_FallingDirection;
-            g_MoveY = -1;
-            return 0;
+            if ((g_ControlState & (CONTROL_LEFT | CONTROL_RIGHT)) == 0)
+            {
+                int sliding = Level_IsSliding(g_BaseLineTB);
+                if (sliding)
+                {
+                    GameMovePogo(sliding, 0);
+                }
+            }
         }
-
-        if (Level_IsPlatform(g_CurLineTB))  // Climb up
-        {
-            g_MoveY = 2;
-            g_PogoState = POGO_STAY;
-            return 0;
-        }
-
-        if (Level_IsEmpty(g_BaseLineTB))
-        {
-            g_PogoState = POGO_FALL;
-            g_FallingDirection = 0;
-            g_MoveY = -1;
-            g_MoveX = g_PogoDirection ? 1 : -1;
-            return 0;
-        }
+        break;
     }
-
-    int sliding = Level_IsSliding(g_BaseLineTB);
-    if (sliding)
-    {
-        g_MoveX = sliding;
-    }
-
-    return 1;
-}
-
-// Put Pogo to center of the current tower block
-void GameAlignTowerAngle()
-{
-     float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_HALFBLOCK;
-     g_TowerAngle -= comp;
-     if (g_TowerAngle > ANGLE_360) g_TowerAngle -= ANGLE_360;
-     if (g_TowerAngle < 0.0f) g_TowerAngle += ANGLE_360;
 }
 
 // Process controlled logic like moving / turning / jumping
 void GameProcessControls()
 {
+    if (g_PogoState != POGO_STAY && g_PogoState != POGO_WALK)
+        return;
+
     // Walking left and right
     if (g_ControlState & CONTROL_LEFT)
     {
         if (!g_PogoDirection)
         {
-            g_MoveX = -1;
             if (g_PogoState == POGO_STAY)
             {
                 g_PogoState = POGO_WALK;
@@ -1153,6 +1292,14 @@ void GameProcessControls()
             }
             else if (g_PogoState == POGO_WALK)
                 g_PogoMovtPhase++;
+            if (!GameMovePogo(-1, 0))
+            {
+                g_PogoState = POGO_JUMP;
+                g_PogoSubstate = 0;
+                g_JumpDirection = -1;
+                g_JumpHow = 1;
+                g_JumpHowLong = 7;
+            }
         }
         else
         {
@@ -1164,7 +1311,6 @@ void GameProcessControls()
     {
         if (g_PogoDirection)
         {
-            g_MoveX = 1;
             if (g_PogoState == POGO_STAY)
             {
                 g_PogoState = POGO_WALK;
@@ -1172,6 +1318,14 @@ void GameProcessControls()
             }
             else if (g_PogoState == POGO_WALK)
                 g_PogoMovtPhase++;
+            if (!GameMovePogo(1, 0))
+            {
+                g_PogoState = POGO_JUMP;
+                g_PogoSubstate = 0;
+                g_JumpDirection = 1;
+                g_JumpHow = 1;
+                g_JumpHowLong = 7;
+            }
         }
         else
         {
@@ -1221,8 +1375,11 @@ void GameProcessControls()
     // Jump
     if ((g_ControlState & CONTROL_UP) && g_PogoState == POGO_WALK)
     {
-        g_MoveY = -1;
         g_PogoState = POGO_JUMP;
+        g_PogoSubstate = 0;
+        g_JumpDirection = g_PogoDirection ? 1 : -1;
+        g_JumpHow = 0;
+        g_JumpHowLong = 12;
         g_PogoMovtPhase = 0;
     }
 
@@ -1256,25 +1413,13 @@ void GameProcess()
 {
     GameCalculatePosition();
 
-    // Check if Pogo died in the water
-    if (g_TowerLevel < -POSY_POGO_HEIGHT * 2)
-    {
-        g_GameResult = GAME_DIED;
-        return;
-    }
-
     SnowballUpdate();
     Robot_New(g_TowerLevel);
     Robot_Update();
     Elevator_Update();
 
-    if (GameProcessLogicCont())
-    {
-        if (GameProcessLogic())
-        {
-            GameProcessControls();
-        }
-    }
+    GameProcessLogic();
+    GameProcessControls();
 
     GameMoveTower();
 
@@ -1316,7 +1461,7 @@ void MenuProcessEvent(SDL_Event evt)
         {
         case SDLK_ESCAPE:  // SELECT button on Dingoo
         case SDLK_PAUSE:   // POWER UP button on Dingoo
-            g_okQuit = 1;
+            g_okQuit = TRUE;
             break;
         case SDLK_LCTRL:   // A button on Dingoo
         case SDLK_LALT:    // B button on Dingoo
@@ -1389,7 +1534,7 @@ int main(int argc, char * argv[])
         {
             if (evt.type == SDL_QUIT)
             {
-                g_okQuit = 1;
+                g_okQuit = TRUE;
                 break;
             }
             else
@@ -1412,7 +1557,6 @@ int main(int argc, char * argv[])
             frames++;
 
             // Delay
-            const int FRAME_TICKS = 30;  // 33.3 frames per second
             Uint32 ticksNew = SDL_GetTicks();
             Uint32 ticksElapsed = ticksNew - ticksLast;
             g_LastDelay = 0;
@@ -1433,9 +1577,15 @@ int main(int argc, char * argv[])
             if (g_GameResult == GAME_ABORTED)
                 MenuStart();
             else if (g_GameResult == GAME_FINISHED)
+            {
+                //TODO: Start with the next tower
                 MenuStart();
+            }
             else if (g_GameResult == GAME_DIED)
+            {
+                //TODO: g_Lifes--; Check if no lifes left
                 GameStart();
+            }
         }
     }
 

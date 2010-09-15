@@ -13,14 +13,18 @@
 #define SCREEN_WIDTH            320
 #define SCREEN_HEIGHT           240
 
+#define FRAME_TICKS             30  // 33.3 frames per second
+
+#define FIRST_TOWER             0
+
 const float PI                  = 3.14159265358979323f;
 const float ANGLE_360           = 360.0f;
 const float ANGLE_180           = 180.0f;
 const float ANGLE_270           = 270.0f;
-const float ANGLE_90            = 90.0f;
-const float ANGLE_BLOCK         = 22.5f;    // 16 blocks
-const float ANGLE_HALFBLOCK     = 11.25f;
-const float ANGLE_ROTATION      = 2.5f;     // Rotation quant: tower moves for this quant every frame
+const float ANGLE_90            =  90.0f;
+const float ANGLE_BLOCK         =  22.5f;   // 16 blocks
+const float ANGLE_HALFBLOCK     =  11.25f;
+const float ANGLE_ROTATION      =   2.5f;   // Rotation quant: tower moves for this quant every frame
 
 #define TOWER_ANGLECOUNT        144         // Total rotation quants for one round: 360.0 / 2.5 = 144
 
@@ -60,6 +64,17 @@ enum PogoStateEnum
     POGO_FALL       = 0x0020,
     POGO_DROWN      = 0x0040,
 };
+
+int Main_GetTowerLevel();       // Get current vertical position
+float Main_GetTowerAngle();     // Get current rotation position
+int Main_IsPogoWalking();
+
+#ifndef FALSE
+#define FALSE                   0
+#endif
+#ifndef TRUE
+#define TRUE                    1
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -156,13 +171,15 @@ void Level_ClearBlock(int row, int col);
 Uint8 Level_PutPlatform(int row, int col);
 void Level_Restore(int row, int col, Uint8 data);
 
+int Level_TestFigure(float angle, int level, int back, int fore, int typ, int height, int width);
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Robots
 
 #define MAX_OBJECTS 4
 
-#define TIMEOUT_ROBOT_CROSS         125
+#define TIMEOUT_ROBOT_CROSS         10000 //125
 
 // Values for kinds of robots
 typedef enum RobotKindEnum
