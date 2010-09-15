@@ -141,7 +141,7 @@ void Robot_New(int toplevel)
 // Returns the index of the figure the given figure (nr) collides with or -1 if there is no such object
 int Robot_FigureCollision(int nr)
 {
-    return -1;  //STUB
+    return -1;  //TODO
 }
 
 // Returns true, if the robot cannot be at the given position without colliding
@@ -154,7 +154,7 @@ int Robot_TestEr(int t)
 // Tests the underground of the given object (only used for freeze ball) returns
 int Robot_TestUnderground(int nr)
 {
-    return 0;  //STUB
+    return 0;  //TODO
 }
 
 void Robot_MoveHorizontal(int t)
@@ -191,23 +191,30 @@ void Robot_UpdateCross(int t)
     }
 }
 
-// Checks if the robot is at a position that it can not be if not remove it
+// Remove objects that drop below the screen
 int Robot_CheckVerticalPosition(int level, int t)
+{
+    if (g_Robot_Objects[t].level + 48 < level)
+    {
+        g_Robot_Objects[t].kind = OBJ_KIND_DISAPPEAR;
+        g_Robot_Objects[t].time = 0;
+        return TRUE;
+    }
+    else
+        return FALSE;
+}
+
+// Checks if the robot is at a position that it can not be if not remove it
+int Robot_CheckValidPosition(int t)
 {
     if (Robot_TestEr(t))
     {
         g_Robot_Objects[t].kind = OBJ_KIND_DISAPPEAR;
         g_Robot_Objects[t].time = 0;
-        return 1;
+        return TRUE;
     }
     else
-        return 0;
-}
-
-int Robot_CheckValidPosition(int t)
-{
-    //TODO
-    return 0;  //STUB
+        return FALSE;
 }
 
 void Robot_Drown(int t)
@@ -295,7 +302,7 @@ void Robot_Update()
                 while (h != 0)
                 {
                     g_Robot_Objects[t].level += h;
-                    if (Robot_TestEr(t) || Robot_FigureCollision(t) != -1) break;
+                    if (!Robot_TestEr(t) || Robot_FigureCollision(t) != -1) break;
                     g_Robot_Objects[t].level -= h;
 
                     if (h > 0) h--; else h++;
@@ -316,12 +323,6 @@ void Robot_Update()
                 h = g_Robot_Objects[t].subkind;
                 Robot_MoveHorizontal(t);
 
-                if (h * g_Robot_Objects[t].subkind < 0)
-                {
-                    float w = fmod(g_Robot_Objects[t].angle + ANGLE_360 - Main_GetTowerAngle(), ANGLE_360);
-                    //TODO
-                }
-
                 if (g_Robot_Objects[t].level + jumping_ball[g_Robot_Objects[t].time] < 0)
                 {
                     Robot_Drown(t);
@@ -332,7 +333,7 @@ void Robot_Update()
                 while (h != 0)
                 {
                     g_Robot_Objects[t].level += h;
-                    if (Robot_TestEr(t) || Robot_FigureCollision(t) != -1) break;
+                    if (!Robot_TestEr(t) || Robot_FigureCollision(t) != -1) break;
                     g_Robot_Objects[t].level -= h;
 
                     if (h > 0) h--; else h++;
@@ -341,16 +342,16 @@ void Robot_Update()
                 // Ball is bouncing
                 if (h == 0 && jumping_ball[g_Robot_Objects[t].time] < 0)
                 {
-                    float w = fmod(g_Robot_Objects[t].angle + ANGLE_360 - Main_GetTowerAngle(), ANGLE_360);
-                    //TODO
-
                     g_Robot_Objects[t].time = 0;  // restart bounce cyclus
 
                     // start the bounding ball moving sideways in direction of the animal
                     if (g_Robot_Objects[t].subkind == 0 &&
                         Main_IsPogoWalking() && g_Robot_Objects[t].level == Main_GetTowerLevel())
                     {
-                        //TODO
+                        // check if the animal is near enough to the ball
+                        float w = fmod(g_Robot_Objects[t].angle + ANGLE_360 - Main_GetTowerAngle(), ANGLE_360);
+                        if (w < ANGLE_90 || w > ANGLE_270)
+                            g_Robot_Objects[t].subkind = (w < ANGLE_180) ? -1 : 1;
                     }
                     break;
                 }

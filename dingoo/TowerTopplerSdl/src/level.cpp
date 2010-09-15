@@ -99,7 +99,7 @@ Uint8 conv_char2towercode(char ch)
 
 void Level_SelectTower(int tower)
 {
-    if (tower < 0 || tower >= sizeof(g_Mission1Towers) / sizeof(TowerStruct))
+    if (tower < 0 || (size_t)tower >= sizeof(g_Mission1Towers) / sizeof(TowerStruct))
         return;  // Out of range
     
     g_Level_TowerNumber = tower;
@@ -116,6 +116,13 @@ void Level_SelectTower(int tower)
             g_Level_Tower[row][col] = conv_char2towercode(line[col]);
         }
     }
+}
+
+const char* Level_GetTowerName()
+{
+    if (g_Level_TowerNumber < 0) return NULL;
+
+    return g_Mission1Towers[g_Level_TowerNumber].name;
 }
 
 int Level_GetTowerSize()
@@ -285,7 +292,8 @@ int Level_TestFigure(float fangle, int vert, int back, int fore, int typ, int he
                 t = hinten * 9 + height;
                 if (InsideCyclicIntervall(angle, t, t + width, TOWER_ANGLECOUNT))
                 {
-                    //TODO
+                    if (typ == 2)
+                        Main_SnowballHitsBox(k + y, hinten);
                     return 0;
                 }
             }

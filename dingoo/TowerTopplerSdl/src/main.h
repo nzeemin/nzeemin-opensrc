@@ -68,6 +68,8 @@ enum PogoStateEnum
 int Main_GetTowerLevel();       // Get current vertical position
 float Main_GetTowerAngle();     // Get current rotation position
 int Main_IsPogoWalking();
+void Main_PogoSideMove();       // Move Pogo out of fallen lift
+void Main_SnowballHitsBox(int row, int col);
 
 #ifndef FALSE
 #define FALSE                   0
@@ -121,11 +123,9 @@ int Level_GetTowerCount();
 // Select a tower -- make it current
 void Level_SelectTower(int tower);
 
-// Get height of the selected tower
-int Level_GetTowerSize();
-
-// Color of the selected tower
-Uint32 Level_GetTowerColor();
+const char* Level_GetTowerName();
+int Level_GetTowerSize();           // Get height of the selected tower
+Uint32 Level_GetTowerColor();       // Color of the selected tower
 
 // Get data of the selected tower; row = 0..GetTowerHeight()-1, col = 0..TOWERWID-1
 Uint8 Level_GetTowerBlock(int row, int col);

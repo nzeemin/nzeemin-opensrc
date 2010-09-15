@@ -17,12 +17,6 @@ for Dingoo A320 native OS
 
 
 /////////////////////////////////////////////////////////////////////////////
-
-
-void MenuStart();
-
-
-/////////////////////////////////////////////////////////////////////////////
 // Globals
 
 SDL_Surface *g_Screen = NULL;
@@ -46,6 +40,9 @@ enum GameResultEnum
 
 int g_okQuit = FALSE;
 //int g_Score;
+
+int     g_TowerCount;           // Total towers in the mission
+int     g_TowerNumber;          // Number of the current tower
 
 int     g_TowerHeight = 32;     // Tower height in brick lines
 float   g_TowerAngle = 0;       // Current tower rotation angle, in degree (0.0f .. 359.5f)
@@ -248,7 +245,7 @@ void DrawSprite(int sprite, int x, int y)
     SDL_BlitSurface(g_Sprites, &src, g_Screen, &dest);
 }
 
-void DrawText(int sprite, int x, int y, int charw, int charh, char *str)
+void DrawText(int sprite, int x, int y, int charw, int charh, const char *str)
 {
     int charline;
     char ch;
@@ -285,7 +282,7 @@ void DrawText(int sprite, int x, int y, int charw, int charh, char *str)
     }
 }
 // Draw text with base 8x8 font
-void DrawTextBase(int x, int y, char *str)
+void DrawTextBase(int x, int y, const char *str)
 {
     DrawText(SPRITE_FONT_8X8, x, y, 8, 8, str);
 }
@@ -828,50 +825,6 @@ void Stars_Initialize()
     }
 }
 
-void GameStart()
-{
-    g_GlobalTime = 0;
-
-    // Prepare Pogo
-    g_PogoState = POGO_STAY;
-    g_PogoDirection = 1;
-    g_ControlState = CONTROL_NONE;
-    g_SnowballDirection = 0;
-
-    // Prepare tower
-    g_TowerAngle = ANGLE_HALFBLOCK;
-    g_TowerLevel = POSY_BRICK_HEIGHT * 2;
-    g_TowerTopLineY = 0;
-
-    Level_SelectTower(FIRST_TOWER);
-
-    g_TowerHeight = Level_GetTowerSize();
-    g_TowerColor = Level_GetTowerColor();
-
-    // Prepare tower colors
-    Uint8 r, g, b;
-    SDL_GetRGB(g_TowerColor, g_Screen->format, &r,&g,&b);
-    Uint16 rd, gd, bd;
-    rd = ((Uint16)r) * 2 / 4;
-    gd = ((Uint16)g) * 2 / 4;
-    bd = ((Uint16)b) * 2 / 4;
-    g_TowerColorDark = SDL_MapRGB(g_Screen->format, (Uint8)rd,(Uint8)gd,(Uint8)bd);
-    Uint16 rl, gl, bl;
-    rl = (Uint16)r * 3 / 2;  if (rl > 255) rl = 255;
-    gl = (Uint16)g * 3 / 2;  if (gl > 255) gl = 255;
-    bl = (Uint16)b * 3 / 2;  if (bl > 255) bl = 255;
-    g_TowerColorLite = SDL_MapRGB(g_Screen->format, (Uint8)rl,(Uint8)gl,(Uint8)bl);
-
-    Robot_Initialize();
-    Elevator_Initialize();
-    Stars_Initialize();
-
-    ClearScreen();
-
-    g_GameMode = GAMEMODE_PLAY;
-    g_GameResult = GAME_NONE;
-}
-
 void GameProcessEvent(SDL_Event evt)
 {
     if (evt.type == SDL_KEYDOWN)
@@ -952,19 +905,33 @@ void GameCalculatePosition()
 
 void SnowballUpdate()
 {
-    if (g_SnowballDirection != 0)
-    {
-        float delta = ANGLE_ROTATION * 2;
-        g_SnowballAngle += delta * g_SnowballDirection;
-        if (g_SnowballAngle > ANGLE_360) g_SnowballAngle -= ANGLE_360;
-        else if (g_SnowballAngle < 0.0f) g_SnowballAngle += ANGLE_360;
-        g_SnowballAnglePassed += delta;
-        if (fmod(g_SnowballAnglePassed + 0.01f, ANGLE_ROTATION * 2 * 4) < 0.02f)
-            g_SnowballLevel++;
+    if (g_SnowballDirection == 0) return;
 
-        if (g_SnowballAnglePassed > ANGLE_90 + ANGLE_HALFBLOCK)
-            g_SnowballDirection = 0;
+    float delta = ANGLE_ROTATION * 2;
+    g_SnowballAngle += delta * g_SnowballDirection;
+    if (g_SnowballAngle > ANGLE_360) g_SnowballAngle -= ANGLE_360;
+    else if (g_SnowballAngle < 0.0f) g_SnowballAngle += ANGLE_360;
+    g_SnowballAnglePassed += delta;
+    if (fmod(g_SnowballAnglePassed + 0.01f, ANGLE_ROTATION * 2 * 4) < 0.02f)
+        g_SnowballLevel++;
+
+    if (g_SnowballAnglePassed > ANGLE_90 + ANGLE_HALFBLOCK)
+    {
+        g_SnowballDirection = 0;
+        return;
     }
+
+    if (g_SnowballAnglePassed > ANGLE_HALFBLOCK &&
+        !Level_TestFigure(g_SnowballAngle, g_SnowballLevel, -1, 0, 2, 2, 5))
+    {
+        g_SnowballDirection = 0;
+    }
+}
+
+void Main_SnowballHitsBox(int row, int col)
+{
+    Level_ClearBlock(row, col);
+    //TODO: Add 50 points to score
 }
 
 int GameMovePogo(int dx, int dy)
@@ -1393,6 +1360,22 @@ void GameProcessControls()
     }
 }
 
+void Main_PogoSideMove()
+{
+    if (g_PogoState != POGO_STAY && g_PogoState != POGO_WALK && g_PogoState != POGO_JUMP)
+        return;
+
+    if (GameMovePogo(0, 0)) return;
+
+    int i = 1;
+    while (TRUE)
+    {
+        if (GameMovePogo(i, 0)) return;
+        if (GameMovePogo(-i, 0)) return;
+        i++;
+    }
+}
+
 void GameMoveTower()
 {
     if (g_MoveX != 0)
@@ -1425,6 +1408,73 @@ void GameProcess()
 
     g_GlobalTime++;
 }
+
+void GameStartTower()
+{
+    char buffer[20];
+
+    g_GlobalTime = 0;
+    g_GameResult = GAME_NONE;
+
+    // Prepare Pogo
+    g_PogoState = POGO_STAY;
+    g_PogoDirection = 1;
+    g_ControlState = CONTROL_NONE;
+    g_SnowballDirection = 0;
+
+    // Prepare tower
+    g_TowerAngle = ANGLE_HALFBLOCK;
+    g_TowerLevel = POSY_BRICK_HEIGHT * 2;
+    g_TowerTopLineY = 0;
+    g_LastTowerAngle = -1.0f;  // Reset g_TowerBricks
+
+    Level_SelectTower(g_TowerNumber);
+
+    g_TowerHeight = Level_GetTowerSize();
+    g_TowerColor = Level_GetTowerColor();
+
+    // Prepare tower colors
+    Uint8 r, g, b;
+    SDL_GetRGB(g_TowerColor, g_Screen->format, &r,&g,&b);
+    Uint16 rd, gd, bd;
+    rd = ((Uint16)r) * 2 / 4;
+    gd = ((Uint16)g) * 2 / 4;
+    bd = ((Uint16)b) * 2 / 4;
+    g_TowerColorDark = SDL_MapRGB(g_Screen->format, (Uint8)rd,(Uint8)gd,(Uint8)bd);
+    Uint16 rl, gl, bl;
+    rl = (Uint16)r * 3 / 2;  if (rl > 255) rl = 255;
+    gl = (Uint16)g * 3 / 2;  if (gl > 255) gl = 255;
+    bl = (Uint16)b * 3 / 2;  if (bl > 255) bl = 255;
+    g_TowerColorLite = SDL_MapRGB(g_Screen->format, (Uint8)rl,(Uint8)gl,(Uint8)bl);
+
+    Robot_Initialize();
+    Elevator_Initialize();
+
+    // Show tower starting screen
+    ClearScreen();
+
+    sprintf(buffer, "TOWER %2d", (g_TowerNumber + 1));
+    DrawTextBase(SCREEN_WIDTH / 2 - 8*8/2, SCREEN_HEIGHT / 2 - 8, buffer);
+    const char* towername = Level_GetTowerName();
+    DrawTextBase(SCREEN_WIDTH / 2 - strlen(towername)*8/2, SCREEN_HEIGHT / 2 + 8, towername);
+
+    SDL_Flip(g_Screen);
+    SDL_Delay(1200);
+
+    ClearScreen();
+}
+
+void GameStart()
+{
+    Stars_Initialize();
+
+    g_GameMode = GAMEMODE_PLAY;
+
+    g_TowerCount = Level_GetTowerCount();
+    g_TowerNumber = FIRST_TOWER;
+    GameStartTower();
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Menu
@@ -1466,6 +1516,7 @@ void MenuProcessEvent(SDL_Event evt)
         case SDLK_LCTRL:   // A button on Dingoo
         case SDLK_LALT:    // B button on Dingoo
         case SDLK_SPACE:
+        case SDLK_RETURN:  // START button on Dingoo
             GameStart();
             break;
         default:  // Do nothing
@@ -1481,7 +1532,7 @@ void MenuProcessEvent(SDL_Event evt)
 #undef main  //HACK for VC error LNK1561: entry point must be defined
 #endif
 
-int main(int argc, char * argv[])
+int main()
 {
 #ifdef _WIN32
     SDL_putenv("SDL_VIDEO_WINDOW_POS=300,200");
@@ -1578,13 +1629,16 @@ int main(int argc, char * argv[])
                 MenuStart();
             else if (g_GameResult == GAME_FINISHED)
             {
-                //TODO: Start with the next tower
-                MenuStart();
+                g_TowerNumber++;
+                if (g_TowerNumber < g_TowerCount)
+                    GameStartTower();
+                else
+                    MenuStart();
             }
             else if (g_GameResult == GAME_DIED)
             {
                 //TODO: g_Lifes--; Check if no lifes left
-                GameStart();
+                GameStartTower();
             }
         }
     }

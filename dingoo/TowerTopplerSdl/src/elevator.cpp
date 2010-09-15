@@ -125,7 +125,7 @@ void Elevator_Update()
             if (Level_IsBottomStation(Level_GetTowerBlock(g_Elevators[t].row, g_Elevators[t].col)))
             {
                 g_Elevators[t].time = -1;
-                //TODO: top_sidemove
+                Main_PogoSideMove();
             }
             else
             {
