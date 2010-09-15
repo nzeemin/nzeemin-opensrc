@@ -2,8 +2,9 @@
 
 #define _CRT_SECURE_NO_WARNINGS  // For VC warning C4996: 'sprintf': This function or variable may be unsafe.
 
-#include <stdlib.h>
-#include <stdio.h>
+//#include <stdlib.h>
+//#include <stdio.h>
+#include <math.h>
 
 #include <SDL.h>
 
@@ -137,13 +138,39 @@ void Robot_New(int toplevel)
     }
 }
 
+// Returns the index of the figure the given figure (nr) collides with or -1 if there is no such object
+int Robot_FigureCollision(int nr)
+{
+    return -1;  //STUB
+}
+
+// Returns true, if the robot cannot be at the given position without colliding
+int Robot_TestEr(int t)
+{
+    int test = Level_TestFigure(g_Robot_Objects[t].angle, g_Robot_Objects[t].level, -2, 1, 1, 1, 8);
+    return !test;
+}
+
+// Tests the underground of the given object (only used for freeze ball) returns
+int Robot_TestUnderground(int nr)
+{
+    return 0;  //STUB
+}
+
 void Robot_MoveHorizontal(int t)
 {
     g_Robot_Objects[t].angle += ANGLE_ROTATION * g_Robot_Objects[t].subkind;
     if (g_Robot_Objects[t].angle < 0.0f) g_Robot_Objects[t].angle += ANGLE_360;
     else if (g_Robot_Objects[t].angle >= ANGLE_360) g_Robot_Objects[t].angle -= ANGLE_360;
 
-    //TODO
+    if (Robot_TestEr(t) || Robot_FigureCollision(t) != -1)
+    {
+        g_Robot_Objects[t].subkind = -g_Robot_Objects[t].subkind;
+
+        g_Robot_Objects[t].angle += ANGLE_ROTATION * g_Robot_Objects[t].subkind;
+        if (g_Robot_Objects[t].angle < 0.0f) g_Robot_Objects[t].angle += ANGLE_360;
+        else if (g_Robot_Objects[t].angle >= ANGLE_360) g_Robot_Objects[t].angle -= ANGLE_360;
+    }
 }
 
 void Robot_UpdateCross(int t)
@@ -164,8 +191,41 @@ void Robot_UpdateCross(int t)
     }
 }
 
+// Checks if the robot is at a position that it can not be if not remove it
+int Robot_CheckVerticalPosition(int level, int t)
+{
+    if (Robot_TestEr(t))
+    {
+        g_Robot_Objects[t].kind = OBJ_KIND_DISAPPEAR;
+        g_Robot_Objects[t].time = 0;
+        return 1;
+    }
+    else
+        return 0;
+}
+
+int Robot_CheckValidPosition(int t)
+{
+    //TODO
+    return 0;  //STUB
+}
+
+void Robot_Drown(int t)
+{
+    g_Robot_Objects[t].level = 0;
+    g_Robot_Objects[t].time = 0;
+    g_Robot_Objects[t].kind = OBJ_KIND_DISAPPEAR;
+}
+
 void Robot_Update()
 {
+    /* the vertical movement of the jumping ball */
+    static long jumping_ball[11] = {
+        2, 2, 1, 1, 0, 0, -1, -1, -2, -2, -4
+    };
+
+    int h;
+
     for (int t = 0; t < MAX_OBJECTS; t++)
     {
         switch (g_Robot_Objects[t].kind)
@@ -175,6 +235,7 @@ void Robot_Update()
             case OBJ_KIND_CROSS:
                 Robot_UpdateCross(t);
                 break;
+
             case OBJ_KIND_DISAPPEAR:
                 if (g_Robot_Objects[t].time < 12)
                     g_Robot_Objects[t].time++;
@@ -190,31 +251,143 @@ void Robot_Update()
                     g_Robot_Objects[t].time = 0;
                 }
                 break;
+
             case OBJ_KIND_FREEZEBALL_FROZEN:
                 g_Robot_Objects[t].time--;
                 if (g_Robot_Objects[t].time > 0)
                     break;
                 g_Robot_Objects[t].kind = OBJ_KIND_FREEZEBALL;
                 //NOTE: don't put break here!
+
             case OBJ_KIND_FREEZEBALL:
-                g_Robot_Objects[t].time++;  //STUB
-                //TODO
+                if (Robot_CheckVerticalPosition(Main_GetTowerLevel(), t) ||
+                    Robot_CheckValidPosition(t))
+                    break;
+
+                switch (Robot_TestUnderground(t))
+                {
+                case 1:
+                    g_Robot_Objects[t].kind = OBJ_KIND_FREEZEBALL_FALLING;
+                    g_Robot_Objects[t].time = 10;
+                    break;
+                case 2:
+                    g_Robot_Objects[t].subkind = -g_Robot_Objects[t].subkind;
+                    break;
+                }
+
+                Robot_MoveHorizontal(t);
                 break;
+
             case OBJ_KIND_FREEZEBALL_FALLING:
-                g_Robot_Objects[t].time++;  //STUB
-                //TODO
+                if (Robot_CheckVerticalPosition(Main_GetTowerLevel(), t) ||
+                    Robot_CheckValidPosition(t))
+                    break;
+
+                Robot_MoveHorizontal(t);
+
+                if (g_Robot_Objects[t].level + jumping_ball[g_Robot_Objects[t].time] < 0)
+                {
+                    Robot_Drown(t);
+                    break;
+                }
+
+                h = jumping_ball[g_Robot_Objects[t].time];
+                while (h != 0)
+                {
+                    g_Robot_Objects[t].level += h;
+                    if (Robot_TestEr(t) || Robot_FigureCollision(t) != -1) break;
+                    g_Robot_Objects[t].level -= h;
+
+                    if (h > 0) h--; else h++;
+                }
+
+                if (h == 0 && jumping_ball[g_Robot_Objects[t].time] < 0)
+                {
+                    g_Robot_Objects[t].kind = OBJ_KIND_FREEZEBALL;
+                    g_Robot_Objects[t].time = 0;
+                }
                 break;
+
             case OBJ_KIND_JUMPBALL:
-                g_Robot_Objects[t].time++;  //STUB
-                //TODO: Robot_UpdateJumpBall(t);
+                if (Robot_CheckVerticalPosition(Main_GetTowerLevel(), t) ||
+                    Robot_CheckValidPosition(t))
+                    break;
+
+                h = g_Robot_Objects[t].subkind;
+                Robot_MoveHorizontal(t);
+
+                if (h * g_Robot_Objects[t].subkind < 0)
+                {
+                    float w = fmod(g_Robot_Objects[t].angle + ANGLE_360 - Main_GetTowerAngle(), ANGLE_360);
+                    //TODO
+                }
+
+                if (g_Robot_Objects[t].level + jumping_ball[g_Robot_Objects[t].time] < 0)
+                {
+                    Robot_Drown(t);
+                    break;
+                }
+
+                h = jumping_ball[g_Robot_Objects[t].time];
+                while (h != 0)
+                {
+                    g_Robot_Objects[t].level += h;
+                    if (Robot_TestEr(t) || Robot_FigureCollision(t) != -1) break;
+                    g_Robot_Objects[t].level -= h;
+
+                    if (h > 0) h--; else h++;
+                }
+
+                // Ball is bouncing
+                if (h == 0 && jumping_ball[g_Robot_Objects[t].time] < 0)
+                {
+                    float w = fmod(g_Robot_Objects[t].angle + ANGLE_360 - Main_GetTowerAngle(), ANGLE_360);
+                    //TODO
+
+                    g_Robot_Objects[t].time = 0;  // restart bounce cyclus
+
+                    // start the bounding ball moving sideways in direction of the animal
+                    if (g_Robot_Objects[t].subkind == 0 &&
+                        Main_IsPogoWalking() && g_Robot_Objects[t].level == Main_GetTowerLevel())
+                    {
+                        //TODO
+                    }
+                    break;
+                }
+
+                g_Robot_Objects[t].time++;
+                if (g_Robot_Objects[t].time > 10) g_Robot_Objects[t].time = 10; 
                 break;
+
             case OBJ_KIND_ROBOT_HORIZ:
-                g_Robot_Objects[t].time++;  //STUB
-                //TODO
+                if (Robot_CheckVerticalPosition(Main_GetTowerLevel(), t) ||
+                    Robot_CheckValidPosition(t))
+                    break;
+
+                Robot_MoveHorizontal(t);
+
+                g_Robot_Objects[t].time++;
                 break;
+
             case OBJ_KIND_ROBOT_VERT:
-                g_Robot_Objects[t].time++;  //STUB
-                //TODO
+                if (Robot_CheckVerticalPosition(Main_GetTowerLevel(), t) ||
+                    Robot_CheckValidPosition(t))
+                    break;
+
+                if ((g_Robot_Objects[t].level + g_Robot_Objects[t].subkind) < 0)
+                    Robot_Drown(t);
+                else
+                {
+                    g_Robot_Objects[t].level += g_Robot_Objects[t].subkind;
+
+                    if (Robot_TestEr(t) || Robot_FigureCollision(t) != -1)
+                    {
+                        g_Robot_Objects[t].subkind *= -1;
+                        g_Robot_Objects[t].level += g_Robot_Objects[t].subkind;
+                    }
+                }
+
+                g_Robot_Objects[t].time++;
                 break;
         }
     }

@@ -2,8 +2,8 @@
 
 #define _CRT_SECURE_NO_WARNINGS  // For VC warning C4996: 'sprintf': This function or variable may be unsafe.
 
-#include <stdlib.h>
-#include <stdio.h>
+//#include <stdlib.h>
+//#include <stdio.h>
 
 #include <SDL.h>
 
@@ -231,4 +231,70 @@ Uint8 Level_PutPlatform(int row, int col)
 void Level_Restore(int row, int col, Uint8 data)
 {
     g_Level_Tower[row][col] = data;
+}
+
+static int InsideCyclicIntervall(int x, int start, int end, int cycle)
+{
+    while (x < start) x += cycle;
+    while (x >= end) x -= cycle;
+
+    return (x >= start) && (x < end);
+}
+
+// Returns true, if the given figure can be at the given position without colliding with fixed objects of the tower
+//   typ = 0 - Pogo, 1 - robot, 2 - snowball
+int Level_TestFigure(float fangle, int vert, int back, int fore, int typ, int height, int width)
+{
+    int angle = (int)(fangle / ANGLE_ROTATION);
+    int hinten = ((angle + back) / 9) % 16;
+    int vorn = (((angle + fore) / 9) + 1) % 16;
+
+    int y = vert / POSY_BRICK_HEIGHT;
+    vert = vert % POSY_BRICK_HEIGHT;
+
+    int x = 0;
+    switch (typ)
+    {
+    case 0:  // Pogo
+        x = (vert == 3) ? 3 : 2;
+        break;
+    case 1:  // Robot
+        x = (vert == 0) ? 1 : 2;
+        break;
+    case 2:  // Snowball
+        x = (vert == 0) ? 0 : 1;
+        break;
+    }
+
+    int k, t;
+    do
+    {
+        k = x;
+        do
+        {
+            if (Level_IsPlatform(Level_GetTowerBlock(k + y, hinten)))
+                return 0;
+            else if (Level_IsStick(Level_GetTowerBlock(k + y, hinten)))
+            {
+                t = hinten * 9 + height;
+                if (InsideCyclicIntervall(angle, t, t + width, TOWER_ANGLECOUNT))
+                    return 0;
+            }
+            else if (Level_GetTowerBlock(k + y, hinten) == TB_BOX)
+            {
+                t = hinten * 9 + height;
+                if (InsideCyclicIntervall(angle, t, t + width, TOWER_ANGLECOUNT))
+                {
+                    //TODO
+                    return 0;
+                }
+            }
+            k--;
+        }
+        while (k != -1);
+        hinten = (hinten + 1) % 16;
+    }
+    while (hinten != vorn);
+
+    return 1;
 }
