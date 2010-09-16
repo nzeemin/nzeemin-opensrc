@@ -138,6 +138,34 @@ void Robot_New(int toplevel)
     }
 }
 
+int Robot_PogoCollison(float angle, int level)
+{
+    int j;
+
+    for (int t = 0; t < MAX_OBJECTS; t++)
+    {
+        if (g_Robot_Objects[t].kind != OBJ_KIND_CROSS &&
+            g_Robot_Objects[t].kind != OBJ_KIND_NOTHING &&
+            g_Robot_Objects[t].kind != OBJ_KIND_DISAPPEAR &&
+            g_Robot_Objects[t].kind != OBJ_KIND_APPEAR)
+        {
+            float iangle = fmod(angle + ANGLE_360 - g_Robot_Objects[t].angle, ANGLE_360);
+            j = g_Robot_Objects[t].level - level;
+            if ((iangle < ANGLE_ROTATION * 4 || iangle > ANGLE_360 - ANGLE_ROTATION * 4) &&
+                (-8 < j) && (j < 8))
+                return t;
+        }
+        else if (g_Robot_Objects[t].kind == OBJ_KIND_CROSS)
+        {
+            //TODO
+        }
+    }
+
+    return -1;
+}
+
+//TODO: Robot_SnowballCollision()
+
 // Returns the index of the figure the given figure (nr) collides with or -1 if there is no such object
 int Robot_FigureCollision(int nr)
 {
