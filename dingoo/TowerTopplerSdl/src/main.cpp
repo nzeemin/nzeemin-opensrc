@@ -63,6 +63,7 @@ int     g_PogoMovtPhase;        // Pogo movement phase
 int     g_FallingDirection;     // Pogo falling direction: -1, 0, 1
 int     g_FallingMinimum;
 int     g_FallingHowMuch;
+int     g_ToppleMin;
 int     g_JumpDirection;
 int     g_JumpHow;
 int     g_JumpHowLong;
@@ -130,6 +131,14 @@ enum SpriteEnum
     SPRITE_POGO_L_WALK6,
     SPRITE_POGO_L_WALK7,
     SPRITE_POGO_L_WALK8,
+    SPRITE_POGO_R_TOPPLE1,
+    SPRITE_POGO_R_TOPPLE2,
+    SPRITE_POGO_R_TOPPLE3,
+    SPRITE_POGO_R_TOPPLE4,
+    SPRITE_POGO_L_TOPPLE1,
+    SPRITE_POGO_L_TOPPLE2,
+    SPRITE_POGO_L_TOPPLE3,
+    SPRITE_POGO_L_TOPPLE4,
     SPRITE_POGO_TUNIN1,
     SPRITE_POGO_TUNIN2,
     SPRITE_POGO_TUNIN3,
@@ -186,6 +195,14 @@ g_SpriteCoords[SPRITECOUNT] =   // List of sprites coords, in order of SpriteEnu
     {  76,  21,  24,  20 },  // SPRITE_POGO_L_WALK6
     {  51,  21,  24,  20 },  // SPRITE_POGO_L_WALK7
     {  26,  21,  24,  20 },  // SPRITE_POGO_L_WALK8
+    { 126,  42,  24,  20 },  // SPRITE_POGO_R_TOPPLE1
+    { 101,  42,  24,  20 },  // SPRITE_POGO_R_TOPPLE2
+    {  76,  42,  24,  20 },  // SPRITE_POGO_R_TOPPLE3
+    { 126,   0,  24,  20 },  // SPRITE_POGO_R_TOPPLE4 -- the same as SPRITE_POGO_R_WALK5
+    {   1,  42,  24,  20 },  // SPRITE_POGO_L_TOPPLE1
+    {  26,  42,  24,  20 },  // SPRITE_POGO_L_TOPPLE2
+    {  51,  42,  24,  20 },  // SPRITE_POGO_L_TOPPLE3
+    { 101,  21,  24,  20 },  // SPRITE_POGO_L_TOPPLE4 -- the same as SPRITE_POGO_L_WALK5
     {   1,  63,  24,  20 },  // SPRITE_POGO_TUNIN1
     {  26,  63,  24,  20 },  // SPRITE_POGO_TUNIN2
     {  51,  63,  24,  20 },  // SPRITE_POGO_TUNIN3
@@ -197,8 +214,8 @@ g_SpriteCoords[SPRITECOUNT] =   // List of sprites coords, in order of SpriteEnu
     { 226,  42,  24,  20 },  // SPRITE_POGO_DROWN3
     { 130, 119,   8,   8 },  // SPRITE_SNOWBALL
     { 130, 109,  11,   9 },  // SPRITE_LIFE
-    {   1,  85, 160,  23 },  // SPRITE_FONT_TIMER
-    {   1, 109, 128,  40 },  // SPRITE_FONT_8X8
+    {   1,  85-23, 160,  23 },  // SPRITE_FONT_TIMER ('0'-'9' only)
+    {   1, 109, 128,  48 },  // SPRITE_FONT_8X8
     { 226,  84,  20,  20 },  // SPRITE_ROBOT_APPEAR1
     { 205,  84,  20,  20 },  // SPRITE_ROBOT_APPEAR1
     { 184,  84,  20,  20 },  // SPRITE_ROBOT_APPEAR1
@@ -262,9 +279,9 @@ void DrawText(int sprite, int x, int y, int charw, int charh, const char *str)
     while (*str != 0)
     {
         ch = *str;
-        if (ch >= '0')
+        if (ch >= ' ')
         {
-            charline = ((int)ch - '0') / charperline;
+            charline = ((int)ch - ' ') / charperline;
 
             src.x = spriteX + ((int)ch) % charperline * charw;
             src.y = spriteY + charline * charh;
@@ -358,9 +375,9 @@ void DrawGameIndicators()
     sprintf(buffer, "STATE %2d", g_PogoState);  //DEBUG
     DrawTextBase(POSX_VIEWPORT_MARGIN, 8, buffer);  //DEBUG
     sprintf(buffer, "A%4d", (int)(g_TowerAngle * 10));  //DEBUG
-    DrawTextBase(86, 8, buffer);  //DEBUG
+    DrawTextBase(POSX_VIEWPORT_MARGIN + 80, 8, buffer);  //DEBUG
     sprintf(buffer, "L%4d", (int)g_TowerLevel);  //DEBUG
-    DrawTextBase(86, 18, buffer);  //DEBUG
+    DrawTextBase(POSX_VIEWPORT_MARGIN + 80, 18, buffer);  //DEBUG
 
     sprintf(buffer, "DEL %2d", g_LastDelay);  //DEBUG
     DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 11*10, 8, buffer);  //DEBUG
@@ -747,6 +764,10 @@ void DrawPogo()
             y = g_WaterY - POSY_POGO_HEIGHT - 2;
         }
         break;
+    case POGO_TOPPLE:
+        sprite = g_PogoDirection ? SPRITE_POGO_R_TOPPLE1 : SPRITE_POGO_L_TOPPLE1;
+        sprite += (g_PogoSubstate % 16) / 4;
+        break;
     default:
         return;  // Pogo is not visible
     }
@@ -839,6 +860,7 @@ void GameProcessEvent(SDL_Event evt)
             g_GameResult = GAME_ABORTED;
             break;
         case SDLK_LCTRL:   // A button on Dingoo
+        case SDLK_SPACE:   // X button on Dingoo
             g_ControlState |= CONTROL_FIRE;
             break;
         case SDLK_LEFT:
@@ -850,7 +872,6 @@ void GameProcessEvent(SDL_Event evt)
             g_ControlState &= ~CONTROL_LEFT;
             break;
         case SDLK_UP:
-        case SDLK_SPACE:   // X button on Dingoo
             g_ControlState |= CONTROL_UP;
             g_ControlState &= ~CONTROL_DOWN;
             break;
@@ -867,6 +888,7 @@ void GameProcessEvent(SDL_Event evt)
         switch (evt.key.keysym.sym)
         {
         case SDLK_LCTRL:   // A button on Dingoo
+        case SDLK_SPACE:   // X button on Dingoo
             g_ControlState &= ~CONTROL_FIRE;
             break;
         case SDLK_LEFT:
@@ -876,7 +898,6 @@ void GameProcessEvent(SDL_Event evt)
             g_ControlState &= ~CONTROL_RIGHT;
             break;
         case SDLK_UP:
-        case SDLK_SPACE:   // X button on Dingoo
             g_ControlState &= ~CONTROL_UP;
             break;
         case SDLK_DOWN:
@@ -978,6 +999,12 @@ void GamePogoFalling(int nr)
     }
 }
 
+void GamePogoTopple()
+{
+    g_PogoState = POGO_TOPPLE;
+    g_PogoSubstate = 0;
+}
+
 // Tests the underground of the animal at the given position returning
 //   0 if everything is all right
 //   1 if there is no underground below us (fall vertical)
@@ -1015,6 +1042,27 @@ int GameTestUnderground()
     return g_PogoDirection ? erg & 0xf : erg >> 4;
 }
 
+void GamePogoTestCollision()
+{
+    if (g_PogoState == POGO_DROWN ||
+        g_PogoState == POGO_DOOR ||
+        g_PogoState == POGO_TOPPLE)
+        return;
+
+    int nr = Robot_PogoCollison(g_TowerAngle, g_TowerLevel);
+    if (nr != -1)
+    {
+        if (Robot_GetKind(nr) == OBJ_KIND_CROSS)
+            g_ToppleMin = 12;
+        else
+            g_ToppleMin = 16;
+
+        //TODO
+        GamePogoTopple();
+    }
+    //TODO
+}
+
 // Put Pogo to center of the current tower block
 void GameAlignTowerAngle()
 {
@@ -1029,6 +1077,9 @@ void GameProcessLogic()
     /* the height differences for jumping */
     static long jump0[12] = { 3, 2, 2, 1, 1, 0, 0, -1, -1, -2, -2, -3 };
     static long jump1[7] = { 2, 2, 1, 0, -1, -2, -2 };
+    
+    /* the vertical movement for toppling */
+    static long toppler2[16] = { 3, 2, 1, 1, 1, 0, 0, -1, -2, -2, -3, -3, -3, -3, -3, -4 };
 
     int inh, b;
 
@@ -1037,6 +1088,8 @@ void GameProcessLogic()
         g_PogoState = POGO_DROWN;
         g_PogoMovtPhase = 0;
     }
+
+    GamePogoTestCollision();
 
     switch (g_PogoState)
     {
@@ -1196,6 +1249,22 @@ void GameProcessLogic()
         g_MoveY = g_ElevDirection;
         break;
 
+    case POGO_TOPPLE:
+        if (g_PogoSubstate < g_ToppleMin)
+        {
+            g_MoveY = toppler2[(g_PogoSubstate < 15) ? g_PogoSubstate : 15];
+
+            g_PogoSubstate++;
+        }
+        else
+        {
+            g_MoveY = -4;
+            //TODO
+            if (GameMovePogo(0, 0))
+                GamePogoFalling(3);
+        }
+        break;
+
     //TODO: case POGO_TURN:
 
     case POGO_DROWN:
@@ -1330,7 +1399,7 @@ void GameProcessControls()
     }
 
     // Door and 180 degree rotation
-    if ((g_ControlState & CONTROL_UP) && g_PogoState == POGO_STAY && Level_IsDoor(g_CurLineTB))
+    if ((g_ControlState & CONTROL_UP) && Level_IsDoor(g_CurLineTB))
     {
         GameAlignTowerAngle();  //TODO: Move to 180 degree rotation motion phase
         g_Pogo180Angle = fmod(g_TowerAngle + ANGLE_180, ANGLE_360);
@@ -1340,7 +1409,7 @@ void GameProcessControls()
     }
 
     // Jump
-    if ((g_ControlState & CONTROL_UP) && g_PogoState == POGO_WALK)
+    if ((g_ControlState & CONTROL_FIRE) && g_PogoState == POGO_WALK)
     {
         g_PogoState = POGO_JUMP;
         g_PogoSubstate = 0;
@@ -1351,7 +1420,7 @@ void GameProcessControls()
     }
 
     // Throw snowball
-    if ((g_ControlState & CONTROL_FIRE) && g_SnowballDirection == 0)
+    if ((g_ControlState & CONTROL_FIRE) && g_PogoState == POGO_STAY && g_SnowballDirection == 0)
     {
         g_SnowballAngle = g_TowerAngle;
         g_SnowballLevel = g_TowerLevel + 6;
@@ -1495,8 +1564,15 @@ void MenuStart()
     DrawTextBase(SCREEN_WIDTH / 2 - 8*11/2, 76, buffer);
     DrawTextBase(SCREEN_WIDTH / 2 - 8*11/2, 84, __DATE__);
 
-    DrawTextBase(SCREEN_WIDTH / 2 - 8*16/2, 180, "PRESS A TO START");
-    DrawTextBase(SCREEN_WIDTH / 2 - 8*20/2, 188, "PRESS SELECT TO EXIT");
+    const int y = 120;
+    DrawTextBase(POSX_VIEWPORT_MARGIN, y+0*8, "Weird things are happening on Planet");
+    DrawTextBase(POSX_VIEWPORT_MARGIN, y+1*8, "Nebulus.  Someone or something has");
+    DrawTextBase(POSX_VIEWPORT_MARGIN, y+2*8, "begun building huge towers on the sea");
+    DrawTextBase(POSX_VIEWPORT_MARGIN, y+3*8, "bottom without having a construction");
+    DrawTextBase(POSX_VIEWPORT_MARGIN, y+4*8, "license...");
+
+    DrawTextBase(SCREEN_WIDTH / 2 - 8*16/2, SCREEN_HEIGHT - 30, "PRESS A TO START");
+    DrawTextBase(SCREEN_WIDTH / 2 - 8*20/2, SCREEN_HEIGHT - 20, "PRESS SELECT TO EXIT");
     
     SDL_Flip(g_Screen);
 

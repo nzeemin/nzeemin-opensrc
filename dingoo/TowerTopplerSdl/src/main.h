@@ -10,7 +10,7 @@
 #define VERSION_MAJOR           0
 #define VERSION_MINOR           1
 
-#define SCREEN_WIDTH            320
+#define SCREEN_WIDTH            320     // 320..428 -- from QVGA to WQVGA
 #define SCREEN_HEIGHT           240
 
 #define FRAME_TICKS             30  // 33.3 frames per second
@@ -37,7 +37,7 @@ const float ANGLE_ROTATION      =   2.5f;   // Rotation quant: tower moves for t
 #define TOWER_SNOWBALLC_RADIUS  (TOWER_RADIUS + 15)     // From tower center to snowball center
 #define TOWER_ROBOTC_RADIUS     (TOWER_RADIUS + 15)     // From tower center to robot center
 #define POSY_BRICK_HEIGHT       8
-#define POSX_VIEWPORT_MARGIN    6
+#define POSX_VIEWPORT_MARGIN    (8 + (SCREEN_WIDTH - 320) / 2)
 #define POSY_VIEWPORT_TOP       44
 #define POSY_VIEWPORT_BOTTOM    SCREEN_HEIGHT - 16
 #define POSY_VIEWPORT_HEIGHT    180
@@ -63,6 +63,7 @@ enum PogoStateEnum
     POGO_ELEV       = 0x0010,  // Moving up or down on elevator
     POGO_FALL       = 0x0020,
     POGO_DROWN      = 0x0040,
+    POGO_TOPPLE     = 0x0080,
 };
 
 int Main_GetTowerLevel();       // Get current vertical position
@@ -204,6 +205,8 @@ RobotKindEnum Robot_GetKind(int rob);
 float Robot_GetAngle(int rob);
 int Robot_GetLevel(int rob);
 int Robot_GetTime(int rob);
+
+int Robot_PogoCollison(float angle, int level);
 
 
 /////////////////////////////////////////////////////////////////////////////
