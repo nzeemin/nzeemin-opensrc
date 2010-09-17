@@ -43,7 +43,10 @@ OBJ     = $(OBJ_CPP) $(OBJ_C) $(OBJ_S)
 
 .PHONY : all
 
-all : $(APP_NAME).app
+all : $(APP_NAME).sim
+
+$(APP_NAME).sim : $(APP_NAME).app
+	cp $(APP_NAME).app $(APP_NAME).sim
 
 $(APP_NAME).app : $(APP_NAME).elf
 	$(DINGOO_SDK)/tools/elf2app/elf2app $(APP_NAME)
