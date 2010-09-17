@@ -209,8 +209,7 @@ int main(int argc, char *argv[]){
 	//resize(330*3/2, 410*3/2);
     resize(320, 240, 1);
 
-	if(argc > 1)
-		cartfilename = argv[1];
+	cartfilename = argv[0];  // In SIM files argv[0] contains the target to be loaded.
 
 	init();
 
