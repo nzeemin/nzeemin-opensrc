@@ -55,7 +55,7 @@ void osint_render(void){
 	SDL_Flip(screen);
 }
 
-static char *romfilename = "rom.dat";
+static char *romfilename = "ROM.VECX";
 static char *cartfilename = NULL;
 
 static void init(){
@@ -242,7 +242,10 @@ int main(int argc, char *argv[]){
 #ifdef _WIN32
     if (argc > 1) cartfilename = argv[1];
 #else
-	cartfilename = argv[0];  // In SIM files argv[0] contains the target to be loaded.
+    if (stricmp(argv[0], "ROM.VECX") != 0)  // If user selected ROM.VECX cartridge then don't use any cartridge
+    {
+	    cartfilename = argv[0];  // In SIM files argv[0] contains the target to be loaded.
+    }
 #endif
 
 	init();
