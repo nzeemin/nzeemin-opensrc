@@ -43,12 +43,12 @@ void osint_render(void){
 				    c, c, c, 0xff);
 	}
 
-    //TODO: Draw overlay image
+    // Draw overlay image
     if (overlay != NULL)
     {
         SDL_Rect src, dst;
         dst.x = src.x = 0;  dst.y = src.y = 0;
-        dst.w = src.w = screenx;  dst.h = src.h = screeny;
+        dst.w = src.w = (Uint16)screenx;  dst.h = src.h = (Uint16)screeny;
         SDL_BlitSurface(overlay, &src, screen, &dst);
     }
 
@@ -127,7 +127,8 @@ static void readevents(){
 			//	break;
 			case SDL_KEYDOWN:
 				switch(e.key.keysym.sym){
-					case SDLK_ESCAPE:
+					case SDLK_ESCAPE:   // SELECT button on Dingoo
+                    case SDLK_PAUSE:    // POWERUP button on Dingoo
 						exit(0);
 					case SDLK_a:
                     case SDLK_LSHIFT:   // Y button on Dingoo
@@ -224,10 +225,16 @@ void osint_emuloop(){
 #endif
 
 int main(int argc, char *argv[]){
+#ifndef _WIN32
+    SDL_putenv("DINGOO_IGNORE_OS_EVENTS=1");  //HACK to fix "push long time on X" problem
+#endif
 	SDL_Init(SDL_INIT_VIDEO);
 
 #ifdef _WIN32
-	resize(240, 320, 0);
+    SDL_putenv("SDL_VIDEO_WINDOW_POS=300,200");
+    SDL_WM_SetCaption("Vectrex SDL", "Vectrex SDL");
+
+    resize(240, 320, 0);
 #else
     resize(320, 240, 1);
 #endif
