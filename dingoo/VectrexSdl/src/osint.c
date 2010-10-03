@@ -7,6 +7,7 @@
 
 #include "osint.h"
 #include "vecx.h"
+#include "e8910.h"
 
 #define EMU_TIMER 30 /* the emulators heart beats at 20 milliseconds */
 
@@ -19,6 +20,11 @@ static long screeny;
 static long scl_factor;
 static long offx;
 static long offy;
+
+// SDL audio stuff
+SDL_AudioSpec reqSpec;
+SDL_AudioSpec givenSpec;
+SDL_AudioSpec *usedSpec;
 
 void osint_render(void){
 	int v;
@@ -90,7 +96,7 @@ static void init(){
 
         // Seek for overlay image, load if found
         overlay = NULL;
-		if(f = fopen(cartfilename, "rb")){
+		if(f = fopen(buffer, "rb")){
     		fclose(f);
 
             overlay = IMG_Load(buffer);
@@ -103,7 +109,7 @@ void resize(int width, int height, int rotate){
 
 	screenx = width;
 	screeny = height;
-	screen = SDL_SetVideoMode(screenx, screeny, 0, SDL_SWSURFACE | SDL_RESIZABLE);
+	screen = SDL_SetVideoMode(screenx, screeny, 0, 0);
     rotatexy = rotate;
 
     sclx = (rotate ? ALG_MAX_Y : ALG_MAX_X) / screen->w;
@@ -228,7 +234,12 @@ int main(int argc, char *argv[]){
 #ifndef _WIN32
     SDL_putenv("DINGOO_IGNORE_OS_EVENTS=1");  //HACK to fix "push long time on X" problem
 #endif
-	SDL_Init(SDL_INIT_VIDEO);
+	if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    {
+	    fprintf(stderr, "Failed to initialize video: %s\n", SDL_GetError());
+	    exit(-1);
+    }
+    atexit(SDL_Quit);
 
 #ifdef _WIN32
     SDL_putenv("SDL_VIDEO_WINDOW_POS=300,200");
@@ -249,9 +260,12 @@ int main(int argc, char *argv[]){
 #endif
 
 	init();
+    e8910_init_sound();
 
 	osint_emuloop();
 
+    e8910_done_sound();
+    SDL_Quit();
+
 	return 0;
 }
-
