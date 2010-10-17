@@ -157,7 +157,12 @@ int Robot_PogoCollison(float angle, int level)
         }
         else if (g_Robot_Objects[t].kind == OBJ_KIND_CROSS)
         {
-            //TODO
+            int xpos = (int)(g_Robot_Objects[t].angle);
+            if (xpos + POSX_ROBOT_HALFWIDTH >= -POSX_POGO_HALFWIDTH && xpos - POSX_ROBOT_HALFWIDTH <= POSX_POGO_HALFWIDTH &&
+                g_Robot_Objects[t].level <= level + POSY_POGO_HEIGHT && g_Robot_Objects[t].level + POSY_ROBOT_HEIGHT >= level)
+            {
+                return t;
+            }
         }
     }
 
@@ -180,9 +185,50 @@ int Robot_TestEr(int t)
 }
 
 // Tests the underground of the given object (only used for freeze ball) returns
+//   0 if nothing needs to be done
+//   1 for falling
+//   2 for reverse direction
 int Robot_TestUnderground(int nr)
 {
-    return 0;  //TODO
+    int row, col;
+    Uint8 data;
+
+    row = g_Robot_Objects[nr].level / POSY_BRICK_HEIGHT - 1;
+    col = (int)(g_Robot_Objects[nr].angle / ANGLE_ROTATION) / 8;
+    data = Level_GetTowerBlock(row, col);
+
+    if (data == TB_BOX) return 0;
+    if (Level_IsPlatform(data) || Level_IsStick(data))
+    {
+        if (Level_IsElevator(data))
+            return 2;
+        else
+            return 0;
+    }
+
+    if ((int)(g_Robot_Objects[nr].angle / ANGLE_ROTATION) % 16 < 2)
+    {
+        Uint8 dataprev = Level_GetTowerBlock(row, (col - 1) % 16);
+        if (Level_IsEmpty(dataprev)) return 1;
+        if (Level_IsDoor(dataprev)) return 1;
+        if ((g_Robot_Objects[nr].subkind & 0x80) == 0)
+            return 2;
+        else
+            return 0;
+    }
+
+    if ((int)(g_Robot_Objects[nr].angle / ANGLE_ROTATION) % 16 > 6)
+    {
+        Uint8 dataprev = Level_GetTowerBlock(row, (col - 1) % 16);
+        if (Level_IsEmpty(dataprev)) return 1;
+        if (Level_IsDoor(dataprev)) return 1;
+        if ((g_Robot_Objects[nr].subkind & 0x80) == 0)
+            return 2;
+        else
+            return 0;
+    }
+
+    return 1;
 }
 
 void Robot_MoveHorizontal(int t)
@@ -222,7 +268,7 @@ void Robot_UpdateCross(int t)
 // Remove objects that drop below the screen
 int Robot_CheckVerticalPosition(int level, int t)
 {
-    if (g_Robot_Objects[t].level + 48 < level)
+    if (g_Robot_Objects[t].level + POSY_ROBOT_KILL < level)
     {
         g_Robot_Objects[t].kind = OBJ_KIND_DISAPPEAR;
         g_Robot_Objects[t].time = 0;
