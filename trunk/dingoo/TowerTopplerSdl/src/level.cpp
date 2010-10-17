@@ -4,6 +4,7 @@
 
 //#include <stdlib.h>
 //#include <stdio.h>
+#include <math.h>
 
 #include <SDL.h>
 
@@ -252,12 +253,12 @@ static int InsideCyclicIntervall(int x, int start, int end, int cycle)
 //   typ = 0 - Pogo, 1 - robot, 2 - snowball
 int Level_TestFigure(float fangle, int vert, int back, int fore, int typ, int height, int width)
 {
-    int angle = (int)(fangle / ANGLE_ROTATION);
-    int hinten = ((angle + back) / 9) % 16;
-    int vorn = (((angle + fore) / 9) + 1) % 16;
+    int anglepos = ((int)(fangle / ANGLE_ROTATION)) % TOWER_ANGLECOUNT;
+    int iback = ((anglepos + back) / 8) % TOWERWID;
+    int ifore = (((anglepos + fore) / 8) + 1) % TOWERWID;
 
     int y = vert / POSY_BRICK_HEIGHT;
-    vert = vert % POSY_BRICK_HEIGHT;
+    vert = (vert % POSY_BRICK_HEIGHT) / 2;
 
     int x = 0;
     switch (typ)
@@ -279,30 +280,30 @@ int Level_TestFigure(float fangle, int vert, int back, int fore, int typ, int he
         k = x;
         do
         {
-            if (Level_IsPlatform(Level_GetTowerBlock(k + y, hinten)))
-                return 0;
-            else if (Level_IsStick(Level_GetTowerBlock(k + y, hinten)))
+            if (Level_IsPlatform(Level_GetTowerBlock(k + y, iback)))
+                return FALSE;
+            else if (Level_IsStick(Level_GetTowerBlock(k + y, iback)))
             {
-                t = hinten * 9 + height;
-                if (InsideCyclicIntervall(angle, t, t + width, TOWER_ANGLECOUNT))
-                    return 0;
+                t = iback * 8 + height;
+                if (InsideCyclicIntervall(anglepos, t, t + width, TOWER_ANGLECOUNT))
+                    return FALSE;
             }
-            else if (Level_GetTowerBlock(k + y, hinten) == TB_BOX)
+            else if (Level_GetTowerBlock(k + y, iback) == TB_BOX)
             {
-                t = hinten * 9 + height;
-                if (InsideCyclicIntervall(angle, t, t + width, TOWER_ANGLECOUNT))
+                t = iback * 8 + height;
+                if (InsideCyclicIntervall(anglepos, t, t + width, TOWER_ANGLECOUNT))
                 {
                     if (typ == 2)
-                        Main_SnowballHitsBox(k + y, hinten);
-                    return 0;
+                        Main_SnowballHitsBox(k + y, iback);
+                    return FALSE;
                 }
             }
             k--;
         }
         while (k != -1);
-        hinten = (hinten + 1) % 16;
+        iback = (iback + 1) % TOWERWID;
     }
-    while (hinten != vorn);
+    while (iback != ifore);
 
-    return 1;
+    return TRUE;
 }

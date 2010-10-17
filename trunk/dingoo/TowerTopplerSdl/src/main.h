@@ -8,7 +8,7 @@
 // General
 
 #define VERSION_MAJOR           0
-#define VERSION_MINOR           1
+#define VERSION_MINOR           2
 
 #define SCREEN_WIDTH            320     // 320..428 -- from QVGA to WQVGA
 #define SCREEN_HEIGHT           240
@@ -24,11 +24,12 @@ const float ANGLE_270           = 270.0f;
 const float ANGLE_90            =  90.0f;
 const float ANGLE_BLOCK         =  22.5f;   // 16 blocks
 const float ANGLE_HALFBLOCK     =  11.25f;
-const float ANGLE_ROTATION      =   2.5f;   // Rotation quant: tower moves for this quant every frame
+const float ANGLE_ROTATION      =   2.8125f;  // Rotation quant: tower moves for this quant every frame
 
-#define TOWER_ANGLECOUNT        144         // Total rotation quants for one round: 360.0 / 2.5 = 144
+#define TOWER_ANGLECOUNT        128         // Total rotation quants for one round: 360.0 / 2.8125 = 128
 
 #define TOWER_RADIUS            75
+#define TOWER_INNER_RADIUS      (TOWER_RADIUS - 8)     // Inner radius, to draw top level bricks
 #define TOWER_STEPS_RADIUS      (TOWER_RADIUS + 30)
 #define TOWER_ELEVC_RADIUS      (TOWER_RADIUS + 15)     // Distance between tower center and elevator center
 #define TOWER_ELEV_RADIUS       14                      // Radius of elevator platform
@@ -47,11 +48,14 @@ const float ANGLE_ROTATION      =   2.5f;   // Rotation quant: tower moves for t
 #define POSY_POGO_BASE          (POSY_VIEWPORT_TOP + 110)
 #define POSX_POGO_HALFWIDTH     12
 #define POSY_POGO_HEIGHT        20
+#define POSY_ROBOT_HEIGHT       20
+#define POSY_ROBOT_KILL         (POSY_VIEWPORT_BOTTOM - POSY_POGO_BASE + POSY_ROBOT_HEIGHT)
+#define POSX_ROBOT_HALFWIDTH    10
 
-#define STARS_MULTIPLIER        3
+#define STARS_MULTIPLIER        4
 #define STARS_BACK_HEIGHT       (POSY_VIEWPORT_HEIGHT * 2)
 #define STARS_BACK_WIDTH        (TOWER_ANGLECOUNT * STARS_MULTIPLIER)
-#define STARCOUNT               50
+#define STARCOUNT               60
 
 enum PogoStateEnum
 {
@@ -160,6 +164,10 @@ inline int Level_IsStick(Uint8 data) {
     return ((data == TB_STICK) || (data == TB_STICK_TOP) || (data == TB_STICK_MIDDLE) || (data == TB_STICK_BOTTOM) ||
             (data == TB_STICK_DOOR) || (data == TB_STICK_DOOR_TARGET));
 }
+inline int Level_IsElevator(Uint8 data) {
+    return ((data == TB_STICK_BOTTOM) || (data == TB_STICK_MIDDLE) || (data == TB_STICK_TOP) ||
+            (data == TB_ELEV_BOTTOM) || (data == TB_ELEV_MIDDLE) || (data == TB_ELEV_TOP));
+}
 
 void Level_Platform2Stick(int row, int col);
 void Level_Stick2Platform(int row, int col);
@@ -180,7 +188,7 @@ int Level_TestFigure(float angle, int level, int back, int fore, int typ, int he
 
 #define MAX_OBJECTS 4
 
-#define TIMEOUT_ROBOT_CROSS         10000 //125
+#define TIMEOUT_ROBOT_CROSS         150
 
 // Values for kinds of robots
 typedef enum RobotKindEnum

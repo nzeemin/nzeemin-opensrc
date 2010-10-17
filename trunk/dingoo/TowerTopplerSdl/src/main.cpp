@@ -10,7 +10,6 @@ for Dingoo A320 native OS
 //#include <stdlib.h>
 //#include <stdio.h>
 #include <math.h>
-
 #include <SDL.h>
 
 #include "main.h"
@@ -67,8 +66,9 @@ int     g_ToppleMin;
 int     g_JumpDirection;
 int     g_JumpHow;
 int     g_JumpHowLong;
-float   g_Pogo180Angle;         // Target angle for 180 degree rotation
+float   g_Pogo180Rotates;       // Number of tower rotate quants for 180 degree rotation
 int     g_ElevDirection;        // Elevator movement direction: -1 or 1
+int     g_SnowballTime;
 float   g_SnowballAnglePassed;
 float   g_SnowballAngle;
 int     g_SnowballLevel;
@@ -367,13 +367,13 @@ void DrawGameIndicators()
 {
     char buffer[16];
 
-    // Draw score
+    //// Draw score
     //DrawTextBase(POSX_VIEWPORT_MARGIN, 8, "SCORE");
     //sprintf(buffer, "%08d", 0);
     //DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);
 
-    sprintf(buffer, "STATE %2d", g_PogoState);  //DEBUG
-    DrawTextBase(POSX_VIEWPORT_MARGIN, 8, buffer);  //DEBUG
+    //sprintf(buffer, "STATE %2d", g_PogoState);  //DEBUG
+    //DrawTextBase(POSX_VIEWPORT_MARGIN, 8, buffer);  //DEBUG
     sprintf(buffer, "A%4d", (int)(g_TowerAngle * 10));  //DEBUG
     DrawTextBase(POSX_VIEWPORT_MARGIN + 80, 8, buffer);  //DEBUG
     sprintf(buffer, "L%4d", (int)g_TowerLevel);  //DEBUG
@@ -384,14 +384,14 @@ void DrawGameIndicators()
     sprintf(buffer, "FPS %2d", g_LastFps);  //DEBUG
     DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 11*10, 18, buffer);  //DEBUG
 
-    // Draw lives left
-    DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 8*5, 8, "LIVES");
-    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12, 18);
-    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*2, 18);
-    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*3, 18);
+    //// Draw lives left
+    //DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 8*5, 8, "LIVES");
+    //DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12, 18);
+    //DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*2, 18);
+    //DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*3, 18);
 
-    // Draw time
-    DrawText(SPRITE_FONT_TIMER, SCREEN_WIDTH / 2 - 16*4/2, 8,  16,23, "1000");
+    //// Draw time
+    //DrawText(SPRITE_FONT_TIMER, SCREEN_WIDTH / 2 - 16*4/2, 8,  16,23, "1000");
 }
 
 void DrawBackground()
@@ -400,17 +400,18 @@ void DrawBackground()
 
     // Draw background stars
     int starsY = g_TowerLevel % STARS_BACK_HEIGHT;
-    int starsX = (int)((TOWER_ANGLECOUNT - (int)(g_TowerAngle / ANGLE_ROTATION)) * STARS_MULTIPLIER);
+    int starsX = STARS_BACK_WIDTH - (int)(g_TowerAngle / ANGLE_ROTATION) * STARS_MULTIPLIER;
     Uint32 colorStars = SDL_MapRGB(g_Screen->format, 255,255,255);
     for (int i = 0; i < STARCOUNT; i++)
     {
-        if (g_Stars[i].x >= starsX && g_Stars[i].x < starsX + SCREEN_WIDTH)
+        int x = g_Stars[i].x - starsX;
+        if (x < 0) x += STARS_BACK_WIDTH;
+        if (x >= 0 && x < SCREEN_WIDTH)
         {
-            int stary = g_Stars[i].y + starsY;
-            if (stary > STARS_BACK_HEIGHT) stary -= STARS_BACK_HEIGHT;
+            int stary = (g_Stars[i].y + starsY) % STARS_BACK_HEIGHT;
             if (stary > POSY_VIEWPORT_TOP && stary < POSY_VIEWPORT_BOTTOM && stary < g_WaterY)
             {
-                rc.x = g_Stars[i].x - starsX;  rc.y = stary;  rc.w = rc.h = 2;
+                rc.x = x;  rc.y = stary;  rc.w = rc.h = 2;
                 SDL_FillRect(g_Screen, &rc, colorStars);
             }
         }
@@ -485,6 +486,31 @@ void DrawTowerBricks()
     }
 }
 
+void DrawTopEmptyBlock(int x1, int x2, int ix1, int ix2, int y)
+{
+    SDL_Rect rc;
+    if (x2 > x1)
+    {
+        rc.x = POSX_TOWER_CENTER + x1;  rc.y = y - 1;
+        rc.w = x2 - x1;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_colorBlack);
+    }
+    int jx1 = (x2 < ix1) ? x2 : ix1;
+    if (x1 < jx1)
+    {
+        rc.x = POSX_TOWER_CENTER + x1;  rc.y = y - 1;
+        rc.w = jx1 - x1;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
+    }
+    int jx2 = (ix2 < x1) ? x1 : ix2;
+    if (jx2 < x2)
+    {
+        rc.x = POSX_TOWER_CENTER + jx2;  rc.y = y - 1;
+        rc.w = x2 - jx2;  rc.h = POSY_BRICK_HEIGHT;
+        SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
+    }
+}
+
 void DrawDoorBlock(int x1, int x2, int y)
 {
     SDL_Rect rc;
@@ -527,7 +553,7 @@ void DrawElevatorBlock(int ex, int y)
     rc.w = 4;  rc.h = POSY_BRICK_HEIGHT - 1;
     SDL_FillRect(g_Screen, &rc, g_TowerColor);
 }
-void DrawStepBlock(int x1, int x2, int sx1, int sx2, int y, int isprevplatform, int isnextplatform)
+void DrawStepBlock(int x1, int x2, int sx1, int sx2, int y)
 {
     SDL_Rect rc;
 
@@ -537,24 +563,25 @@ void DrawStepBlock(int x1, int x2, int sx1, int sx2, int y, int isprevplatform, 
         rc.w = sx2 - sx1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColorLite);
     }
-    if (x1 < sx1 && !isprevplatform)
+    if (x1 < sx1)
     {
         rc.x = POSX_TOWER_CENTER + x1;  rc.y = y;
         rc.w = sx1 - x1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
     }
-    {  // Small bar at right edge of the step
+    if (sx2 < x2 || sx1 < sx2) {  // Small bar at right edge of the step
         rc.x = POSX_TOWER_CENTER + sx2 - 1;  rc.y = y;
         rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColor);
     }
-    if (sx2 < x2 && !isnextplatform)
+    if (sx2 < x2)
     {
         rc.x = POSX_TOWER_CENTER + sx2;  rc.y = y;
         rc.w = x2 - sx2;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColorDark);
     }
-    {  // Small bar at left edge of the step
+    if (x1 < sx1 || sx1 < sx2)  // Small bar at left edge of the step
+    {
         rc.x = POSX_TOWER_CENTER + sx1;  rc.y = y;
         rc.w = 1;  rc.h = POSY_BRICK_HEIGHT;
         SDL_FillRect(g_Screen, &rc, g_TowerColor);
@@ -593,6 +620,17 @@ void DrawTowerColumn(int i, float angle1, float angle2)
     {
         if (line < 0) break;
 
+        if (line == g_TowerHeight)  // Top line
+        {
+            if ((i & 1) == 0)
+            {
+                int ix1 = (int)(sin1 * TOWER_INNER_RADIUS + 0.5);
+                int ix2 = (int)(sin2 * TOWER_INNER_RADIUS + 0.5);
+                DrawTopEmptyBlock(x1, x2, ix1, ix2, y);
+            }
+            continue;
+        }
+
         Uint8 towerlinetb = Level_GetTowerBlock(line, i);  // Current tower block to draw
         int iprev = i - 1;  if (iprev < 0) iprev = 15;
         Uint8 towerlineprevtb = Level_GetTowerBlock(line, iprev);  // Previous block
@@ -614,8 +652,7 @@ void DrawTowerColumn(int i, float angle1, float angle2)
         // Steps
         else if (Level_IsPlatform(towerlinetb))
         {
-            DrawStepBlock(x1, x2, sx1, sx2, y,
-                Level_IsPlatform(towerlineprevtb), Level_IsPlatform(towerlinenexttb));
+            DrawStepBlock(x1, x2, sx1, sx2, y);
         }
         // Sticks
         else if (Level_IsStick(towerlinetb))
@@ -709,23 +746,56 @@ void DrawTower()
     g_TowerTopLine = line;
     g_TowerTopLineY = y;
 
-    // Draw tower body
-    DrawTowerBricks();
+    int towerpos = (int)(g_TowerAngle / ANGLE_ROTATION);
 
-    // Draw tower extras: steps, doors, elevators etc.
-    float angle = 0.0f;
-    for (int i = 0; i < 16; i++, angle += ANGLE_BLOCK)
+    // Draw tower blocks behind the tower
+    for (int j = 63; j >= 31; j--)  // 63..31
     {
-        float angle1 = fmod(angle + ANGLE_360 - g_TowerAngle, ANGLE_360);
-        float angle2 = fmod(angle1 + ANGLE_BLOCK, ANGLE_360);
-
-        if (angle2 < ANGLE_90 + ANGLE_BLOCK || angle1 > ANGLE_270 - ANGLE_BLOCK)
+        int pos = (j + towerpos) % TOWER_ANGLECOUNT;
+        if (pos % 8 == 0)
         {
-            DrawTowerColumn(i, angle1, angle2);
+            float angle1 = j * ANGLE_ROTATION;
+            float angle2 = angle1 + ANGLE_BLOCK;
+            DrawTowerColumn(pos / 8, angle1, angle2);
+        }
+    }
+    for (int j = 64; j < 96; j++)  // 64..95
+    {
+        int pos = (j + towerpos) % TOWER_ANGLECOUNT;
+        if (pos % 8 == 0)
+        {
+            float angle1 = j * ANGLE_ROTATION;
+            float angle2 = angle1 + ANGLE_BLOCK;
+            DrawTowerColumn(pos / 8, angle1, angle2);
         }
     }
 
-    DrawRobots();
+    // Draw tower body
+    DrawTowerBricks();
+
+    // Draw tower blocks in front of the tower
+    for (int j = 32; j >= 0; j--)  // 32..0
+    {
+        int pos = (j + towerpos) % TOWER_ANGLECOUNT;
+        if (pos % 8 == 0)
+        {
+            float angle1 = j * ANGLE_ROTATION;
+            float angle2 = angle1 + ANGLE_BLOCK;
+            DrawTowerColumn(pos / 8, angle1, angle2);
+        }
+    }
+    for (int j = 96; j < 128; j++)  // 96..127
+    {
+        int pos = (j + towerpos) % TOWER_ANGLECOUNT;
+        if (pos % 8 == 0)
+        {
+            float angle1 = j * ANGLE_ROTATION;
+            float angle2 = angle1 + ANGLE_BLOCK;
+            DrawTowerColumn(pos / 8, angle1, angle2);
+        }
+    }
+
+    //DEBUG DrawRobots();
 }
 
 void DrawPogo()
@@ -817,7 +887,7 @@ void DrawGameScreen()
 
         DrawSnowball();
         DrawPogo();
-        DrawRobotCross();
+        //DrawRobotCross();
 
         DrawWater();
     }
@@ -915,7 +985,7 @@ void GameCalculatePosition()
     g_BaseLine = (g_TowerLevel / 8) - 1;
     g_CurLine = g_BaseLine + 1;
     float angle = g_TowerAngle;
-    g_BaseLineIndex = (int)(angle / ANGLE_BLOCK);
+    g_BaseLineIndex = (int)(angle / ANGLE_BLOCK) % TOWERWID;
     g_BaseLineTB = TB_EMPTY;
     if (g_BaseLine >= 0 && g_BaseLine < g_TowerHeight)
         g_BaseLineTB = Level_GetTowerBlock(g_BaseLine, g_BaseLineIndex);
@@ -926,15 +996,25 @@ void GameCalculatePosition()
 
 void SnowballUpdate()
 {
+    /* the snowball moves up this fiels specifies by how much */
+    static long schusshoch[12] = { 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0 };
+
     if (g_SnowballDirection == 0) return;
+
+    int dy = 1;
+    if (g_SnowballTime < 12)
+        dy = schusshoch[g_SnowballTime];
+    else
+        if (fmod(g_SnowballAnglePassed + 0.01f, ANGLE_ROTATION * 2 * 4) < 0.02f)
+            dy++;
+    dy += g_SnowballLevel;
+    g_SnowballTime++;
 
     float delta = ANGLE_ROTATION * 2;
     g_SnowballAngle += delta * g_SnowballDirection;
     if (g_SnowballAngle > ANGLE_360) g_SnowballAngle -= ANGLE_360;
     else if (g_SnowballAngle < 0.0f) g_SnowballAngle += ANGLE_360;
     g_SnowballAnglePassed += delta;
-    if (fmod(g_SnowballAnglePassed + 0.01f, ANGLE_ROTATION * 2 * 4) < 0.02f)
-        g_SnowballLevel++;
 
     if (g_SnowballAnglePassed > ANGLE_90 + ANGLE_HALFBLOCK)
     {
@@ -958,7 +1038,7 @@ void Main_SnowballHitsBox(int row, int col)
 int GameMovePogo(int dx, int dy)
 {
     int test = Level_TestFigure(
-        g_TowerAngle + (g_MoveX + dx) * ANGLE_ROTATION,
+        fmod(g_TowerAngle + (g_MoveX + dx) * ANGLE_ROTATION + ANGLE_360, ANGLE_360),
         g_TowerLevel + (g_MoveY + dy) * 2,
         -3, 2, 0, 0, 9);
     if (!test)
@@ -1012,11 +1092,10 @@ void GamePogoTopple()
 //   3 if there is no underground in front of us (fall forwards)
 int GameTestUnderground()
 {
-    static unsigned char unter[4 * 9] = {
+    static unsigned char unter[4 * 8] = {
         0x11, 0x20, 0x02, 0x00,
         0x11, 0x00, 0x32, 0x00,
         0x11, 0x00, 0x32, 0x00,
-        0x11, 0x00, 0x11, 0x00,
         0x11, 0x00, 0x11, 0x00,
         0x11, 0x00, 0x11, 0x00,
         0x11, 0x00, 0x11, 0x00,
@@ -1029,15 +1108,15 @@ int GameTestUnderground()
 
     int r = g_BaseLine;
 
-    c = ((int)(g_TowerAngle / ANGLE_ROTATION) + (TOWER_ANGLECOUNT - 7)) / 9 % 16;
+    c = ((int)(g_TowerAngle / ANGLE_ROTATION) + (TOWER_ANGLECOUNT - 4)) / 8 % 16;
     data = Level_GetTowerBlock(r, c);
     erg = (Level_IsEmpty(data) || Level_IsDoor(data)) ? 0 : 2;
 
-    c = (((int)(g_TowerAngle / ANGLE_ROTATION) + (TOWER_ANGLECOUNT - 7)) / 9 + 1) % 16;
+    c = (((int)(g_TowerAngle / ANGLE_ROTATION) + (TOWER_ANGLECOUNT - 4)) / 8 + 1) % 16;
     data = Level_GetTowerBlock(r, c);
     if (!Level_IsEmpty(data) && !Level_IsDoor(data)) erg++;
 
-    erg = unter[((int)(g_TowerAngle / ANGLE_ROTATION + 0.01) % 9) * 4 + erg];
+    erg = unter[((int)(g_TowerAngle / ANGLE_ROTATION + 0.01) % 8) * 4 + erg];
 
     return g_PogoDirection ? erg & 0xf : erg >> 4;
 }
@@ -1063,15 +1142,6 @@ void GamePogoTestCollision()
     //TODO
 }
 
-// Put Pogo to center of the current tower block
-void GameAlignTowerAngle()
-{
-     float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_HALFBLOCK;
-     g_TowerAngle -= comp;
-     if (g_TowerAngle > ANGLE_360) g_TowerAngle -= ANGLE_360;
-     if (g_TowerAngle < 0.0f) g_TowerAngle += ANGLE_360;
-}
-
 void GameProcessLogic()
 {
     /* the height differences for jumping */
@@ -1089,7 +1159,7 @@ void GameProcessLogic()
         g_PogoMovtPhase = 0;
     }
 
-    GamePogoTestCollision();
+    //DEBUG GamePogoTestCollision();
 
     switch (g_PogoState)
     {
@@ -1195,17 +1265,29 @@ void GameProcessLogic()
     case POGO_DOOR:  // Pogo moves thru door and tunnel
         if (g_PogoMovtPhase < 0)  // Part 1: Move in
         {
+            // Move Pogo to door center
+            float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_ROTATION * 4;
+            if (fabs(comp) > 0.01)
+            {
+                g_MoveX = (comp > 0.0f) ? -1 : 1;
+                return;
+            }
+
+            if (g_CurLineTB == TB_DOOR_TARGET)  // Entered target door - game finished
+            {
+                g_GameResult = GAME_FINISHED;
+                return;
+            }
+
+            g_Pogo180Rotates = TOWER_ANGLECOUNT / 2;
+
             g_PogoMovtPhase++;
             return;
         }
-        if (g_CurLineTB == TB_DOOR_TARGET)  // Entered target door - game finished
+        if (g_Pogo180Rotates > 0)  // Part 2: 180 degree rotation
         {
-            g_GameResult = GAME_FINISHED;
-            return;
-        }
-        if (fabs(g_TowerAngle - g_Pogo180Angle) > 0.01f)  // Part 2: 180 degree rotation
-        {
-            g_MoveX = g_PogoDirection ? 3 : -3;
+            g_MoveX = g_PogoDirection ? 2 : -2;
+            g_Pogo180Rotates -= 2;
             return;
         }
         if (g_PogoMovtPhase < 12)  // Part 3: Move out
@@ -1221,7 +1303,7 @@ void GameProcessLogic()
     case POGO_ELEV:
         if (g_PogoMovtPhase != 0)  // Phase for center Pogo to the elevator platform
         {
-            float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_HALFBLOCK;
+            float comp = fmod(g_TowerAngle, ANGLE_BLOCK) - ANGLE_ROTATION * 4;
             if (fabs(comp) > 0.01)
             {
                 g_MoveX = (comp > 0.0f) ? -1 : 1;
@@ -1401,8 +1483,6 @@ void GameProcessControls()
     // Door and 180 degree rotation
     if ((g_ControlState & CONTROL_UP) && Level_IsDoor(g_CurLineTB))
     {
-        GameAlignTowerAngle();  //TODO: Move to 180 degree rotation motion phase
-        g_Pogo180Angle = fmod(g_TowerAngle + ANGLE_180, ANGLE_360);
         g_PogoState = POGO_DOOR;
         g_PogoMovtPhase = -12;
         return;
@@ -1426,6 +1506,8 @@ void GameProcessControls()
         g_SnowballLevel = g_TowerLevel + 6;
         g_SnowballDirection = g_PogoDirection ? 1 : -1;
         g_SnowballAnglePassed = 0;
+        g_SnowballTime = 0;
+        g_ControlState &= ~CONTROL_FIRE;  // Reset signal -- do not auto-fire
     }
 }
 
@@ -1467,7 +1549,7 @@ void GameProcess()
 
     SnowballUpdate();
     Robot_New(g_TowerLevel);
-    Robot_Update();
+    //DEBUG Robot_Update();
     Elevator_Update();
 
     GameProcessLogic();
@@ -1528,7 +1610,7 @@ void GameStartTower()
     DrawTextBase(SCREEN_WIDTH / 2 - strlen(towername)*8/2, SCREEN_HEIGHT / 2 + 8, towername);
 
     SDL_Flip(g_Screen);
-    SDL_Delay(1200);
+    SDL_Delay(1000);
 
     ClearScreen();
 }
