@@ -155,26 +155,93 @@ int Robot_PogoCollison(float angle, int level)
                 (-8 < j) && (j < 8))
                 return t;
         }
-        else if (g_Robot_Objects[t].kind == OBJ_KIND_CROSS)
-        {
-            int xpos = (int)(g_Robot_Objects[t].angle);
-            if (xpos + POSX_ROBOT_HALFWIDTH >= -POSX_POGO_HALFWIDTH && xpos - POSX_ROBOT_HALFWIDTH <= POSX_POGO_HALFWIDTH &&
-                g_Robot_Objects[t].level <= level + POSY_POGO_HEIGHT && g_Robot_Objects[t].level + POSY_ROBOT_HEIGHT >= level)
-            {
-                return t;
-            }
-        }
+        //DEBUG
+        //else if (g_Robot_Objects[t].kind == OBJ_KIND_CROSS)
+        //{
+        //    int xpos = (int)(g_Robot_Objects[t].angle);
+        //    if (xpos + POSX_ROBOT_HALFWIDTH >= -POSX_POGO_HALFWIDTH && xpos - POSX_ROBOT_HALFWIDTH <= POSX_POGO_HALFWIDTH &&
+        //        g_Robot_Objects[t].level <= level + POSY_POGO_HEIGHT && g_Robot_Objects[t].level + POSY_ROBOT_HEIGHT >= level)
+        //    {
+        //        return t;
+        //    }
+        //}
     }
 
     return -1;
 }
 
-//TODO: Robot_SnowballCollision()
+int Robot_SnowballCollision(float fangle, int vert)
+{
+    /* help field for collisions between two objects */
+    static unsigned char collision[16] = {
+        0x00, 0x1c, 0x1c, 0x3e, 0x3e, 0x3e, 0x3e, 0x3e, 0x3e, 0x3e, 0x1c, 0x1c, 0x00, 0x00, 0x00, 0x10
+    };
+
+    long i, j;
+    for (int t = 0; t < MAX_OBJECTS; t++)
+    {
+        if (g_Robot_Objects[t].kind != OBJ_KIND_CROSS &&
+            g_Robot_Objects[t].kind != OBJ_KIND_NOTHING &&
+            g_Robot_Objects[t].kind != OBJ_KIND_DISAPPEAR &&
+            g_Robot_Objects[t].kind != OBJ_KIND_APPEAR)
+        {
+            i = (int)(fmod(fangle - g_Robot_Objects[t].angle + ANGLE_360, ANGLE_360) / ANGLE_ROTATION);
+            j = g_Robot_Objects[t].level - vert;
+            if ((-4 < i) && (i < 4) && (-8 < j) && (j < 8))
+            {
+                if ((collision[j + 7] >> (i + 3)) & 1)
+                    return t;
+                else
+                    return -1;
+            }
+        }
+    }
+    return -1;
+}
+
+int Robot_SnowballHit(int nr)
+{
+    if (g_Robot_Objects[nr].kind == OBJ_KIND_FREEZEBALL) {
+        g_Robot_Objects[nr].time = 0x4b;
+        g_Robot_Objects[nr].kind = OBJ_KIND_FREEZEBALL_FROZEN;
+        return FALSE;
+    } else if (g_Robot_Objects[nr].kind == OBJ_KIND_JUMPBALL) {
+        g_Robot_Objects[nr].kind = OBJ_KIND_DISAPPEAR;
+        g_Robot_Objects[nr].time = 0;
+        return TRUE;
+    } else
+        return FALSE;
+}
 
 // Returns the index of the figure the given figure (nr) collides with or -1 if there is no such object
 int Robot_FigureCollision(int nr)
 {
-    return -1;  //TODO
+    /* help field for collisions between two objects */
+    static unsigned char collision[16] = {
+        0x1c, 0x3e, 0x3e, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x3e, 0x3e, 0x1c, 0x00
+    };
+
+    int t;
+    int i, j;
+    for (t = 0; t < MAX_OBJECTS; t++) {
+        if (t != nr &&
+            g_Robot_Objects[t].kind != OBJ_KIND_CROSS &&
+            g_Robot_Objects[t].kind != OBJ_KIND_NOTHING &&
+            g_Robot_Objects[t].kind != OBJ_KIND_DISAPPEAR &&
+            g_Robot_Objects[t].kind != OBJ_KIND_APPEAR)
+        {
+            i = (int)(fmod(g_Robot_Objects[nr].angle - g_Robot_Objects[t].angle + ANGLE_360, ANGLE_360) / ANGLE_ROTATION);
+            j = g_Robot_Objects[t].level - g_Robot_Objects[nr].level;
+            if ((-4 < i) && (i < 4) && (-8 < j) && (j < 8))
+            {
+                if ((collision[j + 7] >> (i + 3)) & 1)
+                    return t;
+                else
+                    return -1;
+            }
+        }
+    }
+    return -1;
 }
 
 // Returns true, if the robot cannot be at the given position without colliding

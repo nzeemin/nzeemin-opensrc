@@ -15,7 +15,7 @@
 
 #define FRAME_TICKS             30  // 33.3 frames per second
 
-#define FIRST_TOWER             0
+#define FIRST_TOWER             1
 
 const float PI                  = 3.14159265358979323f;
 const float ANGLE_360           = 360.0f;
@@ -215,6 +215,8 @@ int Robot_GetLevel(int rob);
 int Robot_GetTime(int rob);
 
 int Robot_PogoCollison(float angle, int level);
+int Robot_SnowballCollision(float fangle, int vert);
+int Robot_SnowballHit(int nr);
 
 
 /////////////////////////////////////////////////////////////////////////////
