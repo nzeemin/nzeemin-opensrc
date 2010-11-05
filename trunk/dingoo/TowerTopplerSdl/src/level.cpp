@@ -76,6 +76,12 @@ static TowerStruct g_Mission1Towers[] =
     { "Test Tower",         140,150,120,    500, 0, 19,     TestTower },  //DEBUG
     { "Tower of Eyes",      200,60,60,      500, 0, 48,     Mission1Tower1 },
     { "Realm of Robots",    120,120,205,    600, 1, 72,     Mission1Tower2 },
+    { "Trap of Tricks",     170,170,170,    700, 2, 50,     Mission1Tower3 },
+    { "Slippery Slide",     163,120,88,     800, 3, 67,     Mission1Tower4 },
+    { "Broken Path",        0,155,155,      900, 4, 97,     Mission1Tower5 },
+    { "Swimmers Delight",   255,100,100,   1000, 5, 65,     Mission1Tower6 },
+    { "Nasty One",          150,255,150,   1100, 6, 81,     Mission1Tower7 },
+    { "Edge of Doom",       255,155,0,     1200, 7, 97,     Mission1Tower8 },
 };
 
 
@@ -267,7 +273,7 @@ int Level_TestFigure(float fangle, int vert, int back, int fore, int typ, int he
         x = (vert == 3) ? 3 : 2;
         break;
     case 1:  // Robot
-        x = (vert == 0) ? 1 : 2;
+        x = (vert == 0) ? 2 : 3;
         break;
     case 2:  // Snowball
         x = (vert == 0) ? 0 : 1;
