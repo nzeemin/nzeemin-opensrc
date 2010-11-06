@@ -131,6 +131,7 @@ void Level_SelectTower(int tower);
 const char* Level_GetTowerName();
 int Level_GetTowerSize();           // Get height of the selected tower
 Uint32 Level_GetTowerColor();       // Color of the selected tower
+unsigned int Level_GetTowerTime();
 
 // Get data of the selected tower; row = 0..GetTowerHeight()-1, col = 0..TOWERWID-1
 Uint8 Level_GetTowerBlock(int row, int col);
@@ -218,6 +219,8 @@ int Robot_PogoCollison(float angle, int level);
 int Robot_SnowballCollision(float fangle, int vert);
 int Robot_SnowballHit(int nr);
 
+void Robot_MoveCrossOnTowerMove(int movex, int isdoor);
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Elevators
@@ -233,6 +236,13 @@ void Elevator_Move();
 int Elevator_IsAtStop();
 void Elevator_Deactivate();
 void Elevator_Update();
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Fireworks
+
+void Firework_Initialize();
+void Firework_Update(SDL_Surface *screen);
 
 
 /////////////////////////////////////////////////////////////////////////////

@@ -11,6 +11,37 @@
 #include "main.h"
 
 
+/////////////////////////////////////////////////////////////////////////////
+
+
+#include "towers.inc"
+
+struct TowerStruct
+{
+    const char* name;
+    Uint8 colorr, colorg, colorb;
+    unsigned int time;
+    int robot;
+    int height;
+    const char** data;
+}
+static g_Mission1Towers[] = 
+{
+    { "Test Tower",         140,150,120,    300, 0, 19,     TestTower },  //DEBUG
+    { "Tower of Eyes",      200,60,60,      500, 0, 48,     Mission1Tower1 },
+    { "Realm of Robots",    120,120,205,    600, 1, 72,     Mission1Tower2 },
+    { "Trap of Tricks",     170,170,170,    700, 2, 50,     Mission1Tower3 },
+    { "Slippery Slide",     170,125,92,     800, 3, 67,     Mission1Tower4 },
+    { "Broken Path",        0,155,155,      900, 4, 97,     Mission1Tower5 },
+    { "Swimmers Delight",   226,90,90,     1000, 5, 65,     Mission1Tower6 },
+    { "Nasty One",          130,221,130,   1100, 6, 81,     Mission1Tower7 },
+    { "Edge of Doom",       226,136,0,     1200, 7, 97,     Mission1Tower8 },
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
+
+
 /* tower block flags */
 #define TBF_NONE     0x0000
 #define TBF_EMPTY    0x0001 /* block is not solid */
@@ -57,31 +88,6 @@ static TowerBlocks[NUM_TBLOCKS] =
     { "stick at target",   0,  0 },
     { "lift at door",      0 , TBF_STATION|TBF_PLATFORM },
     { "lift at target",    0 , TBF_STATION|TBF_PLATFORM },
-};
-
-#include "towers.inc"
-
-struct TowerStruct
-{
-    const char* name;
-    Uint8 colorr, colorg, colorb;
-    unsigned int time;
-    int robot;
-    int height;
-    const char** data;
-};
-
-static TowerStruct g_Mission1Towers[] = 
-{
-    { "Test Tower",         140,150,120,    500, 0, 19,     TestTower },  //DEBUG
-    { "Tower of Eyes",      200,60,60,      500, 0, 48,     Mission1Tower1 },
-    { "Realm of Robots",    120,120,205,    600, 1, 72,     Mission1Tower2 },
-    { "Trap of Tricks",     170,170,170,    700, 2, 50,     Mission1Tower3 },
-    { "Slippery Slide",     163,120,88,     800, 3, 67,     Mission1Tower4 },
-    { "Broken Path",        0,155,155,      900, 4, 97,     Mission1Tower5 },
-    { "Swimmers Delight",   255,100,100,   1000, 5, 65,     Mission1Tower6 },
-    { "Nasty One",          150,255,150,   1100, 6, 81,     Mission1Tower7 },
-    { "Edge of Doom",       255,155,0,     1200, 7, 97,     Mission1Tower8 },
 };
 
 
@@ -131,12 +137,17 @@ const char* Level_GetTowerName()
 
     return g_Mission1Towers[g_Level_TowerNumber].name;
 }
-
 int Level_GetTowerSize()
 {
     if (g_Level_TowerNumber < 0) return 0;
 
     return g_Level_TowerHeight;
+}
+unsigned int Level_GetTowerTime()
+{
+    if (g_Level_TowerNumber < 0) return 0;
+
+    return g_Mission1Towers[g_Level_TowerNumber].time;
 }
 
 Uint8 Level_GetTowerBlock(int row, int col)
