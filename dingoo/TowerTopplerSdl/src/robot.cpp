@@ -36,6 +36,7 @@ float Robot_GetAngle(int rob) { return g_Robot_Objects[rob].angle; }
 int Robot_GetLevel(int rob) { return g_Robot_Objects[rob].level; }
 int Robot_GetTime(int rob) { return g_Robot_Objects[rob].time; }
 
+// Initialize robot module
 void Robot_Initialize()
 {
     for (int b = 0; b < MAX_OBJECTS; b++) {
@@ -138,6 +139,7 @@ void Robot_New(int toplevel)
     }
 }
 
+// Check if we have Pogo to robot collision
 int Robot_PogoCollison(float angle, int level)
 {
     int j;
@@ -155,21 +157,21 @@ int Robot_PogoCollison(float angle, int level)
                 (-8 < j) && (j < 8))
                 return t;
         }
-        //DEBUG
-        //else if (g_Robot_Objects[t].kind == OBJ_KIND_CROSS)
-        //{
-        //    int xpos = (int)(g_Robot_Objects[t].angle);
-        //    if (xpos + POSX_ROBOT_HALFWIDTH >= -POSX_POGO_HALFWIDTH && xpos - POSX_ROBOT_HALFWIDTH <= POSX_POGO_HALFWIDTH &&
-        //        g_Robot_Objects[t].level <= level + POSY_POGO_HEIGHT && g_Robot_Objects[t].level + POSY_ROBOT_HEIGHT >= level)
-        //    {
-        //        return t;
-        //    }
-        //}
+        else if (g_Robot_Objects[t].kind == OBJ_KIND_CROSS)
+        {
+            int xpos = (int)(g_Robot_Objects[t].angle);
+            if (xpos + POSX_ROBOT_HALFWIDTH >= -POSX_POGO_HALFWIDTH && xpos - POSX_ROBOT_HALFWIDTH <= POSX_POGO_HALFWIDTH &&
+                g_Robot_Objects[t].level <= level + POSY_POGO_HEIGHT && g_Robot_Objects[t].level + POSY_ROBOT_HEIGHT >= level)
+            {
+                return t;
+            }
+        }
     }
 
     return -1;
 }
 
+// Check if we have snowball to robot collision
 int Robot_SnowballCollision(float fangle, int vert)
 {
     /* help field for collisions between two objects */
@@ -199,6 +201,7 @@ int Robot_SnowballCollision(float fangle, int vert)
     return -1;
 }
 
+// Snowball hits the robot
 int Robot_SnowballHit(int nr)
 {
     if (g_Robot_Objects[nr].kind == OBJ_KIND_FREEZEBALL) {
@@ -314,6 +317,7 @@ void Robot_MoveHorizontal(int t)
     }
 }
 
+// Update position of Cross robot
 void Robot_UpdateCross(int t)
 {
     g_Robot_Objects[t].angle -= g_Robot_Objects[t].subkind;
@@ -329,6 +333,26 @@ void Robot_UpdateCross(int t)
         g_Robot_Objects[t].time = 0;
         g_Robot_NextCrossTimer = TIMEOUT_ROBOT_CROSS;
         g_Robot_CrossDirection *= -1;
+    }
+}
+
+// Adjust Cross robot position on tower movement
+void Robot_MoveCrossOnTowerMove(int movex, int isdoor)
+{
+    for (int t = 0; t < MAX_OBJECTS; t++)
+    {
+        if (g_Robot_Objects[t].kind == OBJ_KIND_CROSS)
+        {
+            if (isdoor)
+            {
+                Robot_UpdateCross(t);
+            }
+            else
+            {
+                g_Robot_Objects[t].angle -= movex * 2;
+            }
+            break;
+        }
     }
 }
 
@@ -358,6 +382,7 @@ int Robot_CheckValidPosition(int t)
         return FALSE;
 }
 
+// Robot fall into the water
 void Robot_Drown(int t)
 {
     g_Robot_Objects[t].level = 0;

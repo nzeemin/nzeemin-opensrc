@@ -37,8 +37,10 @@ enum GameResultEnum
     GAME_ABORTED,       // The game was aborted
 } g_GameResult = GAME_NONE;
 
-int g_okQuit = FALSE;
-//int g_Score;
+int     g_okQuit = FALSE;
+int     g_Lives;
+int     g_Score;
+int     g_Time;                 // Time left on the current tower
 
 int     g_TowerCount;           // Total towers in the mission
 int     g_TowerNumber;          // Number of the current tower
@@ -46,6 +48,7 @@ int     g_TowerNumber;          // Number of the current tower
 int     g_TowerHeight = 32;     // Tower height in brick lines
 float   g_TowerAngle = 0;       // Current tower rotation angle, in degree (0.0f .. 359.5f)
 int     g_TowerLevel = 0;       // Viewport level by Y coord, in pixels
+int     g_ReachedLevel;
 Uint32  g_TowerColor;
 Uint32  g_TowerColorDark;
 Uint32  g_TowerColorLite;
@@ -62,6 +65,7 @@ int     g_PogoMovtPhase;        // Pogo movement phase
 int     g_FallingDirection;     // Pogo falling direction: -1, 0, 1
 int     g_FallingMinimum;
 int     g_FallingHowMuch;
+int     g_ToppleDelay;          // If TRUE then topple delayed while elevalor meet next brick level
 int     g_ToppleMin;
 int     g_JumpDirection;
 int     g_JumpHow;
@@ -86,6 +90,7 @@ Uint8   g_BaseLineTB;           // Tower block under Pogo, used in game logic pr
 
 int     g_LastDelay = 0;        //DEBUG: Last delay value, milliseconds
 int     g_LastFps = 0;          //DEBUG: Last Frames-per-Second value
+int     g_InvisibleMode = 0;    //DEBUG: 0 - normal mode, 1 - Pogo invisible to robots, time not counts
 
 struct StarsStruct
 {
@@ -369,7 +374,7 @@ void DrawGameIndicators()
 
     // Draw score
     DrawTextBase(POSX_VIEWPORT_MARGIN, 8, "SCORE");
-    sprintf(buffer, "%08d", 0);
+    sprintf(buffer, "%08d", g_Score);
     DrawTextBase(POSX_VIEWPORT_MARGIN, 18, buffer);
 
     //sprintf(buffer, "STATE %2d", g_PogoState);  //DEBUG
@@ -386,12 +391,17 @@ void DrawGameIndicators()
 
     // Draw lives left
     DrawTextBase(SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 8*5, 8, "LIVES");
-    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12, 18);
-    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*2, 18);
-    DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*3, 18);
+    for (int i = 0; i < g_Lives; i++)
+    {
+        DrawSprite(SPRITE_LIFE, SCREEN_WIDTH - POSX_VIEWPORT_MARGIN - 12*(i+1), 18);
+    }
 
     // Draw time
-    DrawText(SPRITE_FONT_TIMER, SCREEN_WIDTH / 2 - 16*4/2, 8,  16,23, "1000");
+    sprintf(buffer, "%04d", g_Time);
+    if (buffer[0] == '0')
+        DrawText(SPRITE_FONT_TIMER, SCREEN_WIDTH / 2 - 16*4/2 + 16, 8, 16,23, buffer + 1);
+    else
+        DrawText(SPRITE_FONT_TIMER, SCREEN_WIDTH / 2 - 16*4/2,      8, 16,23, buffer);
 }
 
 void DrawBackground()
@@ -732,7 +742,7 @@ void DrawTower()
     // Calculate first block line to draw
     int y = g_WaterY - POSY_BRICK_HEIGHT;
     int line = 0;
-    while (y > POSY_VIEWPORT_TOP && line < g_TowerHeight)  //TODO: Optimize the loop
+    while (y > POSY_VIEWPORT_TOP && line < g_TowerHeight)
     {
         y -= POSY_BRICK_HEIGHT;
         line++;
@@ -881,7 +891,7 @@ void DrawGameScreen()
 
         DrawSnowball();
         DrawPogo();
-        //DrawRobotCross();
+        DrawRobotCross();
 
         DrawWater();
     }
@@ -907,6 +917,34 @@ void Stars_Initialize()
     {
         g_Stars[i].x = rand() % STARS_BACK_WIDTH;
         g_Stars[i].y = rand() % STARS_BACK_HEIGHT;
+    }
+}
+
+void GameAddPoints(int add)
+{
+    g_Score += add;
+    //TODO
+}
+
+void GameCheckNewHeight()
+{
+    if (g_TowerLevel > g_ReachedLevel)
+    {
+        GameAddPoints((g_TowerLevel - g_ReachedLevel) * 5);
+        g_ReachedLevel = g_TowerLevel;
+    }
+}
+
+void GameTimeUpdate()
+{
+    if (!g_InvisibleMode && g_GlobalTime % 10 == 0)
+    {
+        g_Time--;
+        if (g_Time == 0)
+        {
+            g_GameResult = GAME_DIED;
+            //TODO: Show "Time Over" message
+        }
     }
 }
 
@@ -942,6 +980,9 @@ void GameProcessEvent(SDL_Event evt)
         case SDLK_DOWN:
             g_ControlState |= CONTROL_DOWN;
             g_ControlState &= ~CONTROL_UP;
+            break;
+        case SDLK_i:
+            g_InvisibleMode = !g_InvisibleMode;  //DEBUG
             break;
         default:  // Do nothing
             break;
@@ -1029,7 +1070,7 @@ void SnowballUpdate()
         {
             if (Robot_SnowballHit(nr))
             {
-                //TODO: Add 100 points to score
+                GameAddPoints(100);
             }
 
             g_SnowballDirection = 0;
@@ -1041,7 +1082,7 @@ void SnowballUpdate()
 void Main_SnowballHitsBox(int row, int col)
 {
     Level_ClearBlock(row, col);
-    //TODO: Add 50 points to score
+    GameAddPoints(50);
 }
 
 int GameMovePogo(int dx, int dy)
@@ -1137,18 +1178,64 @@ void GamePogoTestCollision()
         g_PogoState == POGO_TOPPLE)
         return;
 
+    if (g_ToppleDelay)  // Topple delayed while Pogo on elevator and elevator not meet next brick level
+    {
+        if (g_PogoState == POGO_ELEV)
+        {
+            if (g_TowerLevel % POSY_BRICK_HEIGHT == 0)
+            {
+                Elevator_Deactivate();
+
+                g_ToppleDelay = FALSE;
+                GamePogoTopple();
+            }
+        }
+        else
+        {
+            g_ToppleDelay = FALSE;
+            GamePogoTopple();
+        }
+
+        return;
+    }
+
     int nr = Robot_PogoCollison(g_TowerAngle, g_TowerLevel);
-    if (nr != -1)
+    if (nr != -1)  // Collision Pogo with robot
     {
         if (Robot_GetKind(nr) == OBJ_KIND_CROSS)
-            g_ToppleMin = 12;
+            g_ToppleMin = 15;
         else
-            g_ToppleMin = 16;
+            g_ToppleMin = 20;
 
-        //TODO
-        GamePogoTopple();
+        if (g_PogoState == POGO_ELEV)
+        {
+            if (g_TowerLevel % POSY_BRICK_HEIGHT == 0)
+            {
+                Elevator_Deactivate();
+
+                GamePogoTopple();
+            }
+            else
+                g_ToppleDelay = TRUE;
+        }
+        else
+            GamePogoTopple();
+
+        return;
     }
-    //TODO
+
+    if (g_PogoState == POGO_ELEV && !GameMovePogo(0, 0))  // Pogo hits something on moving elevator
+    {
+        g_ToppleMin = 20;
+        if (g_TowerLevel % POSY_BRICK_HEIGHT == 0)
+        {
+            Elevator_Deactivate();
+
+            GamePogoTopple();
+        }
+        else
+            g_ToppleDelay = TRUE;
+    }
 }
 
 void GameProcessLogic()
@@ -1168,7 +1255,8 @@ void GameProcessLogic()
         g_PogoMovtPhase = 0;
     }
 
-    //DEBUG GamePogoTestCollision();
+    if (!g_InvisibleMode)
+        GamePogoTestCollision();
 
     switch (g_PogoState)
     {
@@ -1540,10 +1628,15 @@ void GameMoveTower()
 {
     if (g_MoveX != 0)
     {
-        g_TowerAngle += ANGLE_ROTATION * g_MoveX;
+        int movex = g_MoveX;
+        g_MoveX = 0;
+
+        g_TowerAngle += ANGLE_ROTATION * movex;
         if (g_TowerAngle >= ANGLE_360) g_TowerAngle -= ANGLE_360;
         else if (g_TowerAngle < 0.0f) g_TowerAngle += ANGLE_360;
-        g_MoveX = 0;
+
+        // Move Cross Robot
+        Robot_MoveCrossOnTowerMove(movex, (g_PogoState == POGO_DOOR));
     }
     if (g_MoveY != 0)
     {
@@ -1565,8 +1658,11 @@ void GameProcess()
     GameProcessControls();
 
     GameMoveTower();
+    GameCheckNewHeight();
 
     g_GlobalTime++;
+
+    GameTimeUpdate();
 }
 
 void GameStartTower()
@@ -1584,7 +1680,7 @@ void GameStartTower()
 
     // Prepare tower
     g_TowerAngle = ANGLE_HALFBLOCK;
-    g_TowerLevel = POSY_BRICK_HEIGHT * 2;
+    g_TowerLevel = g_ReachedLevel = POSY_BRICK_HEIGHT * 2;
     g_TowerTopLineY = 0;
     g_LastTowerAngle = -1.0f;  // Reset g_TowerBricks
 
@@ -1592,6 +1688,7 @@ void GameStartTower()
 
     g_TowerHeight = Level_GetTowerSize();
     g_TowerColor = Level_GetTowerColor();
+    g_Time = Level_GetTowerTime();
 
     // Prepare tower colors
     Uint8 r, g, b;
@@ -1613,27 +1710,87 @@ void GameStartTower()
     // Show tower starting screen
     ClearScreen();
 
-    sprintf(buffer, "TOWER %2d", (g_TowerNumber + 1));
+    sprintf(buffer, "TOWER %2d", g_TowerNumber);
     DrawTextBase(SCREEN_WIDTH / 2 - 8*8/2, SCREEN_HEIGHT / 2 - 8, buffer);
     const char* towername = Level_GetTowerName();
     DrawTextBase(SCREEN_WIDTH / 2 - strlen(towername)*8/2, SCREEN_HEIGHT / 2 + 8, towername);
 
+    DrawGameIndicators();
+
     SDL_Flip(g_Screen);
-    SDL_Delay(1000);
+    SDL_Delay(1200);
 
     ClearScreen();
 }
 
-void GameStart()
+void GameTowerFinished()
+{
+    ClearScreen();
+
+    DrawTextBase(SCREEN_WIDTH / 2 - 8*15/2, SCREEN_HEIGHT / 2 - 8, "TOWER COMPLETED");
+    DrawGameIndicators();
+
+    SDL_Flip(g_Screen);
+    SDL_Delay(1200);
+}
+
+void GameStart(int firstTower)
 {
     Stars_Initialize();
 
     g_GameMode = GAMEMODE_PLAY;
 
     g_TowerCount = Level_GetTowerCount();
-    g_TowerNumber = FIRST_TOWER;
+    g_TowerNumber = firstTower;
+    g_Score = 0;
+    g_Lives = 3;
+
     GameStartTower();
 }
+
+
+void FireworkMode()
+{
+    Firework_Initialize();
+
+    Uint32 ticksLast = SDL_GetTicks();
+    SDL_Event evt;
+    int okFireworks = TRUE;
+    while (okFireworks)
+    {
+        ClearScreen();
+        DrawTextBase(SCREEN_WIDTH / 2 - 8*15/2, SCREEN_HEIGHT / 2 - 16, "CONGRATULATIONS");
+        DrawTextBase(SCREEN_WIDTH / 2 - 8*18/2, SCREEN_HEIGHT / 2 + 8, "YOU HAVE COMPLETED");
+        DrawTextBase(SCREEN_WIDTH / 2 - 8*12/2, SCREEN_HEIGHT / 2 + 16, "YOUR MISSION");
+        DrawGameIndicators();
+        Firework_Update(g_Screen);
+        SDL_Flip(g_Screen);
+
+        while (SDL_PollEvent(&evt))
+        {
+            if (evt.type == SDL_QUIT)
+            {
+                g_okQuit = TRUE;
+                okFireworks = FALSE;
+                break;
+            }
+            else if (evt.type == SDL_KEYDOWN)
+            {
+                okFireworks = FALSE;
+                break;
+            }
+        }
+
+        // Delay
+        Uint32 ticksNew = SDL_GetTicks();
+        Uint32 ticksElapsed = ticksNew - ticksLast;
+        if (ticksElapsed < FRAME_TICKS)
+            SDL_Delay(FRAME_TICKS - ticksElapsed);
+        ticksLast = ticksNew;
+    }
+}
+
+
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1684,14 +1841,28 @@ void MenuProcessEvent(SDL_Event evt)
         case SDLK_LALT:    // B button on Dingoo
         case SDLK_SPACE:
         case SDLK_RETURN:  // START button on Dingoo
-            GameStart();
+            GameStart(FIRST_TOWER);
+            break;
+        case SDLK_1:  //DEBUG: Jump to selected tower
+        case SDLK_2:
+        case SDLK_3:
+        case SDLK_4:
+        case SDLK_5:
+        case SDLK_6:
+        case SDLK_7:
+        case SDLK_8:
+        case SDLK_0:
+            GameStart(evt.key.keysym.sym - SDLK_0);
+            break;
+        case SDLK_g:  //DEBUG: Show fireworks mode
+            FireworkMode();
+            MenuStart();
             break;
         default:  // Do nothing
             break;
         }
     }
 }
-
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1797,16 +1968,30 @@ int main()
                 MenuStart();
             else if (g_GameResult == GAME_FINISHED)
             {
+                GameTowerFinished();  // Show end screen
+
                 g_TowerNumber++;
                 if (g_TowerNumber < g_TowerCount)
                     GameStartTower();
-                else
+                else  // Game finished
+                {
+                    FireworkMode();
+
                     MenuStart();
+                }
             }
             else if (g_GameResult == GAME_DIED)
             {
-                //TODO: g_Lifes--; Check if no lifes left
-                GameStartTower();
+                g_Lives--;
+                if (g_Lives == 0)  // No lives left
+                {
+                    //TODO: Show message "NO LIVES LEFT"
+                    MenuStart();
+                }
+                else
+                {
+                    GameStartTower();
+                }
             }
         }
     }
