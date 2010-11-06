@@ -261,11 +261,11 @@ int Robot_TestEr(int t)
 int Robot_TestUnderground(int nr)
 {
     int row, col;
-    Uint8 data;
 
+    int robotanglepos = (int)(g_Robot_Objects[nr].angle / ANGLE_ROTATION);
     row = g_Robot_Objects[nr].level / POSY_BRICK_HEIGHT - 1;
-    col = (int)(g_Robot_Objects[nr].angle / ANGLE_ROTATION) / 8;
-    data = Level_GetTowerBlock(row, col);
+    col = (robotanglepos / 8) % 16;
+    Uint8 data = Level_GetTowerBlock(row, col);
 
     if (data == TB_BOX) return 0;
     if (Level_IsPlatform(data) || Level_IsStick(data))
@@ -276,26 +276,26 @@ int Robot_TestUnderground(int nr)
             return 0;
     }
 
-    if ((int)(g_Robot_Objects[nr].angle / ANGLE_ROTATION) % 16 < 2)
+    if ((robotanglepos & 7) < 2)
     {
-        Uint8 dataprev = Level_GetTowerBlock(row, (col - 1) % 16);
-        if (Level_IsEmpty(dataprev)) return 1;
-        if (Level_IsDoor(dataprev)) return 1;
+        Uint8 dataprev = Level_GetTowerBlock(row, (col + 15) % 16);
+        if (Level_IsEmpty(dataprev) || Level_IsDoor(dataprev))
+            return 1;
         if ((g_Robot_Objects[nr].subkind & 0x80) == 0)
             return 2;
         else
             return 0;
     }
 
-    if ((int)(g_Robot_Objects[nr].angle / ANGLE_ROTATION) % 16 > 6)
+    if ((robotanglepos & 7) > 6)
     {
-        Uint8 dataprev = Level_GetTowerBlock(row, (col - 1) % 16);
-        if (Level_IsEmpty(dataprev)) return 1;
-        if (Level_IsDoor(dataprev)) return 1;
+        Uint8 datanext = Level_GetTowerBlock(row, (col + 1) % 16);
+        if (Level_IsEmpty(datanext) || Level_IsDoor(datanext))
+            return 1;
         if ((g_Robot_Objects[nr].subkind & 0x80) == 0)
-            return 2;
-        else
             return 0;
+        else
+            return 2;
     }
 
     return 1;
