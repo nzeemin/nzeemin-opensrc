@@ -339,6 +339,7 @@ void DrawPrepareTowerBricks()
     SDL_FillRect(g_TowerBricks, &rc, g_TowerColorDark);
     
     int y = 1;
+    int shiftbrick = g_TowerHeight & 1;  // The top bricks should be solid
     for (int line = 0; line < 2; line++)
     {
         // Draw bottom horz line
@@ -348,7 +349,7 @@ void DrawPrepareTowerBricks()
 
         // Draw vert lines
         float angle = ANGLE_90 - ANGLE_BLOCK + fmod(ANGLE_360 - g_TowerAngle, ANGLE_BLOCK);
-        if (line == 1) angle += ANGLE_HALFBLOCK;
+        if ((line ^ shiftbrick) == 0) angle += ANGLE_HALFBLOCK;
         angle = fmod(angle, ANGLE_360);
         for (int i = 0; i < 8; i++)
         {
