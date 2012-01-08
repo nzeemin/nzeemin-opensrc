@@ -10,14 +10,13 @@ Color Lines SDL
 #include <stdio.h>
 
 #include <SDL.h>
-//#include <SDL_image.h>
 
 
 void MenuStart();
 
 
 #define VERSION_MAJOR    0
-#define VERSION_MINOR    2
+#define VERSION_MINOR    3
 
 #define SCREEN_WIDTH    480
 #define SCREEN_HEIGHT   272
@@ -27,9 +26,11 @@ void MenuStart();
 
 #define POSX_BOARD_LEFT     130
 #define POSX_TILES_LEFT     (POSX_BOARD_LEFT + 2)
-#define POSY_BOARD_TOP      25
+#define POSY_BOARD_TOP      30
 #define POSY_TILES_TOP      (POSY_BOARD_TOP + 2)
 #define POSX_NEXT_LEFT      (POSX_BOARD_LEFT + 110)
+
+#define POSX_BOARD_RIGHT    (POSX_BOARD_LEFT + 4 + 9 * 24)
 
 enum GameMode
 {
@@ -216,8 +217,8 @@ void DrawGameScreen()
     SDL_FillRect(g_pSurface, &rc, SDL_MapRGB(g_pSurface->format, 0,0,0));
 
     //TODO: Draw columns according to score
-    DrawSprite(SPRITE_KING, -24, 75);
-    DrawSprite(SPRITE_PRETENDER, SCREEN_WIDTH - 42, 75);
+    DrawSprite(SPRITE_KING, POSX_BOARD_LEFT - 96, 75);
+    DrawSprite(SPRITE_PRETENDER, POSX_BOARD_RIGHT + 26, 75);
 
     // Draw board
     rc.x = POSX_BOARD_LEFT;  rc.y = POSY_BOARD_TOP;
@@ -248,15 +249,15 @@ void DrawGameScreen()
 
     // Draw score
     sprintf(buf, "%d", g_KingScore);
-    DrawText(0, 2, buf);
+    DrawText(POSX_BOARD_LEFT - 100, 6, buf);
     sprintf(buf, "% 6d", g_Score); 
-    DrawText(SCREEN_WIDTH - FONT_WIDTH * 6, 2, buf);
+    DrawText(POSX_BOARD_RIGHT + 100 - FONT_WIDTH * 6, 6, buf);
 
     // Draw next colors
-    DrawText(POSX_NEXT_LEFT - FONT_WIDTH * 6, 2, "Next:");
-    DrawSprite(SPRITE_NEXT + g_NextColors[0], POSX_NEXT_LEFT, 4);
-    DrawSprite(SPRITE_NEXT + g_NextColors[1],  POSX_NEXT_LEFT + 16, 4);
-    DrawSprite(SPRITE_NEXT + g_NextColors[2], POSX_NEXT_LEFT + 32, 4);
+    DrawText(POSX_NEXT_LEFT - FONT_WIDTH * 6, 6, "Next:");
+    DrawSprite(SPRITE_NEXT + g_NextColors[0], POSX_NEXT_LEFT, 8);
+    DrawSprite(SPRITE_NEXT + g_NextColors[1], POSX_NEXT_LEFT + 16, 8);
+    DrawSprite(SPRITE_NEXT + g_NextColors[2], POSX_NEXT_LEFT + 32, 8);
 }
 
 void GamePutRandomBall()
@@ -649,16 +650,16 @@ void MenuStart()
     }
 
     sprintf(buffer, "ver. %d.%d", VERSION_MAJOR, VERSION_MINOR);
-    DrawText(SCREEN_WIDTH - FONT_WIDTH * 9, 0, buffer);
-
-	DrawText(0, 0, "Port for"); 
-	DrawText(0, 20, "Ritmix RZX-50"); 
-	DrawText(0, 40, "by EXL");
+    DrawText(SCREEN_WIDTH - FONT_WIDTH * 9, 5, buffer);
 
 #ifdef _WIN32
-    DrawText(100, 250, "Press \"SPACE\" to start, \"ESC\" to exit"); 
+    DrawText(5, 226, "Press");
+    DrawText(5, 240, "  \"SPACE\" to start,");
+    DrawText(5, 254, "  \"ESC\" to exit");
 #else
-    DrawText(100, 250, "Press \"A\" to start, \"SELECT\" to exit");
+    DrawText(5, 226, "Press");
+    DrawText(5, 240, "  \"A\" to start,");
+    DrawText(5, 254, "  \"SELECT\" to exit");
 #endif
 
     SDL_Flip(g_pSurface);
@@ -673,8 +674,7 @@ void MenuProcessEvent(SDL_Event evt)
         switch (evt.key.keysym.sym)
         {
         case SDLK_ESCAPE:
-	case SDLK_RETURN:
-  // SELECT button on Dingoo
+        case SDLK_RETURN:  // SELECT button on Dingoo
         case SDLK_PAUSE:   // POWER UP button on Dingoo
             g_okQuit = 1;
             break;
