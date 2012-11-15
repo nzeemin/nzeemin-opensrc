@@ -2,12 +2,12 @@ package nzeemin;
 import robocode.*;
 import robocode.util.Utils;
 import java.awt.Color;
-//import java.awt.Graphics2D;
+import java.awt.Graphics2D;
 
 // API help : http://robocode.sourceforge.net/docs/robocode/robocode/Robot.html
 
 /**
- * Izh - a robot by (your name here)
+ * Izh - a robot by Nikita Zimin
  */
 public class Izh extends AdvancedRobot
 {
@@ -30,7 +30,8 @@ public class Izh extends AdvancedRobot
 		setAdjustRadarForRobotTurn(false);
 		setAdjustRadarForGunTurn(false);
 		setAdjustGunForRobotTurn(false);
-		setColors(Color.blue, Color.white, Color.gray); // body,gun,radar
+		setColors(Color.blue, Color.cyan, Color.gray); // body,gun,radar
+		setBulletColor(Color.cyan);
 
 		while (true)
 		{
@@ -60,7 +61,7 @@ public class Izh extends AdvancedRobot
 			else if (targetX < 0.0)
 			{
 				for (int i = 0; i < 100; i++) {
-					targetAngle = robocode.util.Utils.getRandom().nextDouble() * Math.PI;
+					targetAngle = robocode.util.Utils.getRandom().nextDouble() * Math.PI * 2;
 					targetDirection = 1.0;  // forward
 					if (targetAngle > Math.PI)
 						targetDirection = -1.0;  // backward
@@ -81,7 +82,7 @@ public class Izh extends AdvancedRobot
 				{
 					targetX = targetY = -1.0;
 					targetAngle = 0.0;
-					targetPauseCount = robocode.util.Utils.getRandom().nextInt(5);
+					targetPauseCount = robocode.util.Utils.getRandom().nextInt(3);
 				}
 				else
 				{
@@ -149,7 +150,7 @@ public class Izh extends AdvancedRobot
 		}
 	}
 	
-	/*public void onPaint(java.awt.Graphics2D g) {
+	public void onPaint(java.awt.Graphics2D g) {
 		if (targetX >= 0)
 		{
 			g.setColor(java.awt.Color.RED);
@@ -157,10 +158,10 @@ public class Izh extends AdvancedRobot
 		}
 		if (enemyLastX >= 0)
 		{
-			g.setColor(java.awt.Color.GREEN);
+			g.setColor(java.awt.Color.GRAY);
 			g.drawLine((int)getX(), (int)getY(), (int)enemyPredictX, (int)enemyPredictY);
 		}
-	}*/
+	}
 	
 	/**
 	 * onScannedRobot: What to do when you see another robot
