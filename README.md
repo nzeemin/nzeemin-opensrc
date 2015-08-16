@@ -30,4 +30,4 @@ All the projects compiled with [dingoo-sdk](http://code.google.com/p/dingoo-sdk/
 
 | Project | Ver. | Description | Status |
 | ----------------------- | ----- | ---------------------------- | ---------- |
-|  **Sea Dragon**  |  0.0  |  remake of classic Atari game  |  in progress  |
+|  **Sea Dragon**  |  0.0  |  remake of classic Atari game  |  in progress, see [gameboy-seadragon](https://github.com/nzeemin/gameboy-seadragon)  |
